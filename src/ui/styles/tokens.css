@@ -1,0 +1,52 @@
+:root {
+  --bg-deep: #06090d;
+  --bg-panel: #0c1219;
+  --bg-elevated: #111a24;
+  --border: #1e2d3d;
+  --border-bright: #2a4058;
+  --text: #c8d4e0;
+  --text-dim: #6b7f94;
+  --text-bright: #e8f0f8;
+  --accent: #3d9eff;
+  --accent-dim: #1a5a8a;
+  --success: #3dba7a;
+  --warn: #e6a23c;
+  --danger: #e85d5d;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --radius: 4px;
+  --topbar-h: 40px;
+  --dock-w: 200px;
+  --kernel-h: 120px;
+  --director-w: 320px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background: var(--bg-deep);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}

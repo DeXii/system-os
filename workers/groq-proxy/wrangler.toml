@@ -1,0 +1,7 @@
+name = "ayanakoji-groq-proxy"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Secrets (wrangler secret put):
+#   GROQ_API_KEY  — Groq API key (required)
+#   PROXY_TOKEN   — optional; must match VITE_PROXY_TOKEN in GitHub / .env
