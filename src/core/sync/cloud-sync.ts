@@ -7,6 +7,7 @@ import {
   getDataSnapshotStats,
   hasSnapshotData,
   importAllData,
+  sanitizeForFirestore,
 } from '../data/export-import';
 import { getCurrentUser } from '../firebase/auth';
 import { getFirestoreDb, isFirebaseConfigured } from '../firebase/config';
@@ -243,11 +244,14 @@ export async function pushToCloud(): Promise<{ ok: boolean; error?: string }> {
       return { ok: false, error: MSG_LOCAL_EMPTY };
     }
     const updatedAt = new Date().toISOString();
-    await setDoc(metaDocRef(user.uid), {
-      version: EXPORT_VERSION,
-      updatedAt,
-      payload,
-    });
+    await setDoc(
+      metaDocRef(user.uid),
+      sanitizeForFirestore({
+        version: EXPORT_VERSION,
+        updatedAt,
+        payload,
+      })
+    );
     lastRemoteUpdatedAt = updatedAt;
     setStatus('synced');
     return { ok: true };

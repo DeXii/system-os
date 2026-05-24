@@ -117,6 +117,11 @@ export function hasSnapshotData(data: unknown): boolean {
   return valid.ok;
 }
 
+/** Удаляет undefined из объектов/массивов для Firestore (через JSON round-trip). */
+export function sanitizeForFirestore<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export async function exportSnapshotObject(): Promise<Record<string, unknown>> {
   const data: Record<string, unknown> = {
     version: EXPORT_VERSION,
@@ -125,7 +130,7 @@ export async function exportSnapshotObject(): Promise<Record<string, unknown>> {
   for (const key of EXPORT_TABLE_KEYS) {
     data[key] = await getTable(key).toArray();
   }
-  return data;
+  return sanitizeForFirestore(data);
 }
 
 export async function exportAllData(): Promise<string> {
