@@ -35,8 +35,27 @@ export function CloudSyncPanel() {
       setBusy(false);
       return;
     }
+    if (pull.cloudEmpty) {
+      setMsg('В облаке пустой snapshot — загружаем локальные данные в Firebase…');
+    }
     const push = await pushToCloud();
-    setMsg(push.ok ? 'Синхронизация завершена' : (push.error ?? 'Ошибка'));
+    if (push.ok) {
+      setMsg(
+        pull.hadData
+          ? 'Синхронизация завершена (облако → устройство → облако).'
+          : 'Локальные данные сохранены в облако.'
+      );
+    } else {
+      setMsg(push.error ?? 'Ошибка');
+    }
+    setBusy(false);
+  };
+
+  const pushOnly = async () => {
+    setBusy(true);
+    setMsg('');
+    const push = await pushToCloud();
+    setMsg(push.ok ? 'Данные отправлены в облако.' : (push.error ?? 'Ошибка'));
     setBusy(false);
   };
 
@@ -61,6 +80,9 @@ export function CloudSyncPanel() {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void syncNow()}>
           Синхронизировать сейчас
+        </button>
+        <button type="button" className="btn" disabled={busy} onClick={() => void pushOnly()}>
+          Только в облако
         </button>
         <button
           type="button"

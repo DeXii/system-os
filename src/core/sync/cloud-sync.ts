@@ -3,6 +3,7 @@ import { db } from '../db';
 import {
   EXPORT_VERSION,
   exportSnapshotObject,
+  hasSnapshotData,
   importAllData,
 } from '../data/export-import';
 import { getCurrentUser } from '../firebase/auth';
@@ -44,7 +45,8 @@ export function isCloudSyncEnabled(): boolean {
 }
 
 export async function pullFromCloud(): Promise<
-  { ok: true; hadData: boolean } | { ok: false; error: string }
+  | { ok: true; hadData: boolean; cloudEmpty?: boolean }
+  | { ok: false; error: string }
 > {
   if (!isFirebaseConfigured()) {
     return { ok: false, error: 'Firebase не настроен' };
@@ -68,6 +70,13 @@ export async function pullFromCloud(): Promise<
     }
 
     lastRemoteUpdatedAt = typeof data.updatedAt === 'string' ? data.updatedAt : '';
+
+    if (!hasSnapshotData(payload)) {
+      // Пустой или битый snapshot в облаке — не затираем локальные данные
+      setStatus('synced');
+      return { ok: true, hadData: false, cloudEmpty: true };
+    }
+
     await importAllData(JSON.stringify(payload));
     setStatus('synced');
     return { ok: true, hadData: true };
@@ -88,6 +97,14 @@ export async function pushToCloud(): Promise<{ ok: boolean; error?: string }> {
   setStatus('syncing');
   try {
     const payload = await exportSnapshotObject();
+    if (!hasSnapshotData(payload)) {
+      setStatus('synced');
+      return {
+        ok: false,
+        error:
+          'Локально нет данных OS (завершите калибровку или импорт JSON). В облако ничего не записано.',
+      };
+    }
     const updatedAt = new Date().toISOString();
     await setDoc(metaDocRef(user.uid), {
       version: EXPORT_VERSION,

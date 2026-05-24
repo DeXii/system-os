@@ -111,6 +111,12 @@ export function validateImportPayload(
   return { ok: true, version: obj.version };
 }
 
+/** Есть ли в snapshot хотя бы одна непустая таблица OS */
+export function hasSnapshotData(data: unknown): boolean {
+  const valid = validateImportPayload(data);
+  return valid.ok;
+}
+
 export async function exportSnapshotObject(): Promise<Record<string, unknown>> {
   const data: Record<string, unknown> = {
     version: EXPORT_VERSION,
