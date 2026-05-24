@@ -3,7 +3,10 @@ import type { User } from 'firebase/auth';
 import { db } from '@/core/db';
 import {
   attachCloudSyncListeners,
+  clearStaleCloudSyncError,
   detachCloudSyncListeners,
+  MSG_CLOUD_EMPTY,
+  MSG_LOCAL_EMPTY,
   pullFromCloud,
   pushToCloud,
 } from '@/core/sync/cloud-sync';
@@ -58,14 +61,22 @@ function OsApp({ user }: { user: User }) {
     let cancelled = false;
     (async () => {
       try {
+        clearStaleCloudSyncError();
         await db.open();
         const pull = await pullFromCloud();
         if (!cancelled && !pull.ok) {
           setSyncNote(`Облако: ${pull.error}. Работа с локальным кэшем.`);
         } else if (!cancelled && pull.ok && !pull.hadData) {
-          const push = await pushToCloud();
-          if (!push.ok) {
-            setSyncNote(`Облако: ${push.error ?? 'не удалось сохранить'}.`);
+          if (pull.cloudEmpty) {
+            const push = await pushToCloud();
+            if (!push.ok) {
+              setSyncNote(MSG_CLOUD_EMPTY);
+            }
+          } else {
+            const push = await pushToCloud();
+            if (!push.ok) {
+              setSyncNote(push.error === MSG_LOCAL_EMPTY ? MSG_LOCAL_EMPTY : `Облако: ${push.error ?? 'не удалось сохранить'}.`);
+            }
           }
         }
         attachCloudSyncListeners();

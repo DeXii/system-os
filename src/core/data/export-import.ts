@@ -137,20 +137,27 @@ export async function importAllData(json: string): Promise<void> {
   const valid = validateImportPayload(parsed);
   if (!valid.ok) throw new Error(valid.error);
 
-  await db.transaction('rw', db.tables, async () => {
-    for (const table of db.tables) {
-      await table.clear();
-    }
-    for (const [key, tableName] of Object.entries(TABLE_MAP)) {
-      const rows = parsed[key];
-      if (Array.isArray(rows) && rows.length) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (db[tableName] as any).bulkAdd(rows);
-      }
-    }
-  });
+  const { pauseCloudSync, resumeCloudSync, scheduleCloudPush, isCloudSyncEnabled } =
+    await import('../sync/cloud-sync');
 
-  const { scheduleCloudPush, isCloudSyncEnabled } = await import('../sync/cloud-sync');
+  pauseCloudSync();
+  try {
+    await db.transaction('rw', db.tables, async () => {
+      for (const table of db.tables) {
+        await table.clear();
+      }
+      for (const [key, tableName] of Object.entries(TABLE_MAP)) {
+        const rows = parsed[key];
+        if (Array.isArray(rows) && rows.length) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (db[tableName] as any).bulkAdd(rows);
+        }
+      }
+    });
+  } finally {
+    resumeCloudSync();
+  }
+
   if (isCloudSyncEnabled()) scheduleCloudPush();
 }
 
