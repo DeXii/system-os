@@ -5,3 +5,6 @@ compatibility_date = "2024-01-01"
 # Secrets (wrangler secret put):
 #   GROQ_API_KEY  — Groq API key (required)
 #   PROXY_TOKEN   — optional; must match VITE_PROXY_TOKEN in GitHub / .env
+#
+# Limits: Free plan ~30s wall-clock per request (Groq + large DIRECTOR context may exceed).
+# For long completions use Workers Paid or trim context in the app (see docs/DEPLOY.md).

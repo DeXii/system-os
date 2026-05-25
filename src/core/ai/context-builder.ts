@@ -60,6 +60,153 @@ async function buildSetLogsSummary(since: string) {
   return [...byExercise.values()].sort((a, b) => b.lastDate.localeCompare(a.lastDate));
 }
 
+function trimRecordArrays(
+  block: Record<string, unknown>,
+  limits: Record<string, number>
+): Record<string, unknown> {
+  const out = { ...block };
+  for (const [key, max] of Object.entries(limits)) {
+    const val = out[key];
+    if (Array.isArray(val)) out[key] = val.slice(0, max);
+  }
+  return out;
+}
+
+/** Shrinks context JSON before Groq to avoid worker timeouts on Cloudflare Free. */
+function trimContextForGroq(
+  ctx: Record<string, unknown>,
+  effectiveScope: string
+): Record<string, unknown> {
+  const out = { ...ctx };
+
+  if (out.foundation && typeof out.foundation === 'object') {
+    const f = trimRecordArrays(out.foundation as Record<string, unknown>, {
+      recentSetLogs: 10,
+      trainingSessionsLast14d: 5,
+      workoutPlansLast7d: 7,
+      bftHistory: 3,
+      acftHistory: 2,
+    });
+    if (effectiveScope !== 'foundation') {
+      delete f.exerciseCatalog;
+    }
+    out.foundation = f;
+  }
+
+  if (out.regulation && typeof out.regulation === 'object') {
+    out.regulation = trimRecordArrays(out.regulation as Record<string, unknown>, {
+      hrvRecent: 5,
+      pstRecent: 3,
+    });
+  }
+
+  if (out.mind && typeof out.mind === 'object') {
+    out.mind = trimRecordArrays(out.mind as Record<string, unknown>, {
+      recentScenarios: 2,
+      recentDecisions: 2,
+    });
+  }
+
+  if (out.influence && typeof out.influence === 'object') {
+    out.influence = trimRecordArrays(out.influence as Record<string, unknown>, {
+      recentEntries: 3,
+    });
+  }
+
+  if (out.recent && typeof out.recent === 'object') {
+    out.recent = trimRecordArrays(out.recent as Record<string, unknown>, {
+      hrv: 5,
+      training: 5,
+    });
+  }
+
+  return out;
+}
+
+function selectContextPayload(
+  fullContext: Record<string, unknown>,
+  effectiveScope: string
+): Record<string, unknown> {
+  if (
+    effectiveScope === 'full' ||
+    effectiveScope === 'director' ||
+    effectiveScope === 'archive'
+  ) {
+    return { ...fullContext, scope: effectiveScope };
+  }
+
+  const scoped: Record<string, unknown> = {
+    date: fullContext.date,
+    scope: effectiveScope,
+    operator: fullContext.operator,
+    schedule: fullContext.schedule,
+    readiness: fullContext.readiness,
+    moduleStatuses: fullContext.moduleStatuses,
+    ruleHints: fullContext.ruleHints,
+    stageProgress: fullContext.stageProgress,
+    compliance: fullContext.compliance,
+    yesterdayPendingMissions: fullContext.yesterdayPendingMissions,
+    today: fullContext.today,
+    recent: fullContext.recent,
+    readingProgress: fullContext.readingProgress,
+  };
+
+  const foundation = fullContext.foundation as Record<string, unknown>;
+  const regulation = fullContext.regulation as Record<string, unknown>;
+
+  switch (effectiveScope) {
+    case 'command':
+      scoped.foundation = {
+        equipmentConstraints: foundation.equipmentConstraints,
+        workoutPlanToday: foundation.workoutPlanToday,
+        setLogsSummary: foundation.setLogsSummary,
+        allowedExerciseIds: foundation.allowedExerciseIds,
+        readinessFoundation: regulation.readinessFoundation,
+      };
+      scoped.regulation = {
+        hrvTrend14d: regulation.hrvTrend14d,
+        readinessRegulation: regulation.readinessRegulation,
+        readinessFoundation: regulation.readinessFoundation,
+        hrvRecent: Array.isArray(regulation.hrvRecent)
+          ? (regulation.hrvRecent as unknown[]).slice(0, 5)
+          : regulation.hrvRecent,
+        breathing7d: regulation.breathing7d,
+      };
+      break;
+    case 'foundation':
+      scoped.foundation = fullContext.foundation;
+      break;
+    case 'regulation':
+      scoped.regulation = fullContext.regulation;
+      scoped.foundation = {
+        readinessFoundation: regulation.readinessFoundation,
+        equipmentConstraints: foundation.equipmentConstraints,
+      };
+      break;
+    case 'mind':
+      scoped.mind = fullContext.mind;
+      break;
+    case 'influence':
+      scoped.influence = fullContext.influence;
+      break;
+    case 'library':
+      scoped.readingProgress = fullContext.readingProgress;
+      scoped.mind = { readingProgress: (fullContext.mind as Record<string, unknown>).readingProgress };
+      break;
+    case 'integration':
+      scoped.integration = fullContext.integration;
+      scoped.foundation = { bftHistory: foundation.bftHistory };
+      scoped.regulation = { hrvTrend14d: regulation.hrvTrend14d };
+      scoped.mind = { ops7d: (fullContext.mind as Record<string, unknown>).ops7d };
+      scoped.influence = { ops7d: (fullContext.influence as Record<string, unknown>).ops7d };
+      break;
+    default:
+      break;
+  }
+
+  return scoped;
+}
+
 export async function buildDirectorContext(scope?: string): Promise<string> {
   const today = todayKey();
   const yesterday = dateKeyDaysAgo(1);
@@ -317,62 +464,10 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
   };
 
   const effectiveScope = scope ?? 'full';
-  if (
-    effectiveScope === 'full' ||
-    effectiveScope === 'director' ||
-    effectiveScope === 'archive' ||
-    effectiveScope === 'command'
-  ) {
-    return JSON.stringify(fullContext);
-  }
-
-  const scoped: Record<string, unknown> = {
-    date: fullContext.date,
-    scope: effectiveScope,
-    operator: fullContext.operator,
-    schedule: fullContext.schedule,
-    readiness: fullContext.readiness,
-    moduleStatuses: fullContext.moduleStatuses,
-    ruleHints: fullContext.ruleHints,
-    stageProgress: fullContext.stageProgress,
-    compliance: fullContext.compliance,
-    yesterdayPendingMissions: fullContext.yesterdayPendingMissions,
-    today: fullContext.today,
-    recent: fullContext.recent,
-    readingProgress: fullContext.readingProgress,
-  };
-
-  switch (effectiveScope) {
-    case 'foundation':
-      scoped.foundation = fullContext.foundation;
-      break;
-    case 'regulation':
-      scoped.regulation = fullContext.regulation;
-      scoped.foundation = {
-        readinessFoundation: fullContext.regulation.readinessFoundation,
-        equipmentConstraints: fullContext.foundation.equipmentConstraints,
-      };
-      break;
-    case 'mind':
-      scoped.mind = fullContext.mind;
-      break;
-    case 'influence':
-      scoped.influence = fullContext.influence;
-      break;
-    case 'library':
-      scoped.readingProgress = fullContext.readingProgress;
-      scoped.mind = { readingProgress: fullContext.mind.readingProgress };
-      break;
-    case 'integration':
-      scoped.integration = fullContext.integration;
-      scoped.foundation = { bftHistory: fullContext.foundation.bftHistory };
-      scoped.regulation = { hrvTrend14d: fullContext.regulation.hrvTrend14d };
-      scoped.mind = { ops7d: fullContext.mind.ops7d };
-      scoped.influence = { ops7d: fullContext.influence.ops7d };
-      break;
-    default:
-      break;
-  }
-
-  return JSON.stringify(scoped);
+  const payload = selectContextPayload(
+    fullContext as unknown as Record<string, unknown>,
+    effectiveScope
+  );
+  const trimmed = trimContextForGroq(payload, effectiveScope);
+  return JSON.stringify(trimmed);
 }

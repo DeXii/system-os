@@ -76,3 +76,4 @@ npm run dev
 | CORS / DIRECTOR offline | Worker задеплоен, `VITE_GROQ_PROXY_URL` верный |
 | «Сгенерировать план» / DIRECTOR зависает на «Запрос к Groq...» | Обновите страницу после деплоя (Ctrl+Shift+R) — нужна миграция IndexedDB v10. В консоли не должно быть `KeyPath ... is not indexed` |
 | Таймаут Groq 90 с | Повторите запрос; при стабильных таймаутах проверьте worker и модель в ARCHIVE |
+| `Failed to fetch` после «Запрос к Groq...» | Тяжёлый запрос + таймаут worker (~30 с на Free). Обновите приложение, проверьте `VITE_GROQ_PROXY_URL` (https). При необходимости Paid Worker или модель `llama-3.1-8b-instant` в ARCHIVE |

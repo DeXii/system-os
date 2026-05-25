@@ -5,6 +5,17 @@ export interface GroqCallOptions {
   maxTokens?: number;
 }
 
+function formatFetchError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : 'Network error';
+  if (msg === 'Failed to fetch') {
+    return (
+      'Сеть: не удалось достучаться до Groq proxy. Частые причины: таймаут Cloudflare Worker (~30 с на Free), ' +
+      'неверный Proxy URL, блокировка расширением. Проверьте ARCHIVE → Proxy URL и повторите с меньшей задачей.'
+    );
+  }
+  return msg;
+}
+
 export async function callGroq(
   system: string,
   user: string,
@@ -49,6 +60,6 @@ export async function callGroq(
     if (e instanceof Error && e.name === 'TimeoutError') {
       return { ok: false, error: 'Таймаут Groq (90 с). Повторите или сократите запрос.' };
     }
-    return { ok: false, error: e instanceof Error ? e.message : 'Network error' };
+    return { ok: false, error: formatFetchError(e) };
   }
 }

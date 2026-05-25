@@ -59,6 +59,11 @@ export function getDirectorStatus(): 'online' | 'offline' | 'needs_config' {
   return v.ok ? 'online' : cfg.proxyUrl || cfg.apiKey ? 'needs_config' : 'offline';
 }
 
+function maxTokensForTask(taskId: TaskId): number {
+  if (taskId === 'weeklyAudit' || taskId === 'freeCommand') return 2048;
+  return 1024;
+}
+
 export async function runDirectorTask(
   taskId: TaskId,
   options?: {
@@ -83,9 +88,15 @@ export async function runDirectorTask(
       `Контекст оператора:\n${context}\n\nВыполни задачу: ${taskId}`;
 
     options?.onProgress?.('Запрос к Groq...');
-    const result = await callGroq(system, user, cfg);
+    const result = await callGroq(system, user, cfg, {
+      maxTokens: maxTokensForTask(taskId),
+    });
     if (!result.ok) {
-      await emitKernel('director', `DIRECTOR: ${taskId} — ${result.error}`, 'error');
+      await emitKernel(
+        'director',
+        `DIRECTOR: ${taskId} — ${result.error} (контекст ${context.length} симв.)`,
+        'error'
+      );
       return result;
     }
 
