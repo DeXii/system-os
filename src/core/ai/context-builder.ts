@@ -1,4 +1,5 @@
 import { getAllowedIdsForKind, getExercisesForKind } from '@/content/exercises';
+import { getAllReferenceTemplatesForGroq } from '@/content/exercises/local-workout-templates';
 import { BAR_EXERCISES } from '@/content/exercises-bars';
 import { db, dateKeyDaysAgo, todayKey } from '../db';
 import { getFitnessLevels, tierForWorkoutKind } from '../engines/progression-engine';
@@ -442,6 +443,10 @@ export async function buildDirectorContext(
           })),
     calibrationRule:
       'Подбирай нагрузку на грани возможностей: 70–90% выполнения целей. Макс 4 подхода. Анализируй setLogsByKind за 7 дней.',
+    referenceWorkoutTemplates: {
+      tierLabel: 'Начинающий (эталон структуры)',
+      ...getAllReferenceTemplatesForGroq(),
+    },
   };
 
   const fullContext = {

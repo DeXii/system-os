@@ -158,24 +158,32 @@ MI OARS, nudge, Theory of Mind, debrief. НЕ требуй ethics checklist.
 ## Действия OS с set_workout_plan.`,
 
   planHift: `Задача: HIFT на грани возможностей оператора (утро).
-Используй foundation.allowedExerciseIds (каталог HIFT), foundation.setLogsByKind.hift, foundation.fitnessLevels.hift, calibration.
-ПРАВИЛА:
-- 5 или 6 упражнений в круге, structure=circuit, rounds=3, roundRestSec=120, restSec=0 внутри круга.
-- Целевые повторы ~85–95% от недавнего факта по логам; если 2 сессии провал — снизить на 10%.
-- Максимум 1 подход на упражнение в круге (sets=1).
-- Нагрузка сложная: оператор должен выполнить ~70–90% целей.
+Используй foundation.referenceWorkoutTemplates.hift как ЭТАЛОН СТРУКТУРЫ (порядок exerciseId, 5 упражнений, circuit, rounds=3, roundRestSec=120, sets=1, restSec=0).
+Также: foundation.allowedExerciseIds, foundation.setLogsByKind.hift, foundation.fitnessLevels.hift, calibration.
+ПРАВИЛА СТРУКТУРЫ (не ломать):
+- Ровно 5 упражнений в том же порядке, что в referenceWorkoutTemplates.hift, те же exerciseId где возможно.
+- structure=circuit, rounds=3, roundRestSec=120, restSec=0 внутри круга, sets=1.
+НАГРУЗКА по fitnessLevels.hift:
+- beginner / novice: цели близки к эталону (±10% повторов).
+- medium: +10–20% к эталону или по setLogsByKind если лучше.
+- pro / ayanakoji: на грани по логам 7 дней (~85–95% факта); если 2 сессии провал — снизить 10%.
+- Можно заменить 1 упражнение из allowedExerciseIds того же паттерна при 2 провалах подряд, не меняя схему круга.
 ОБЯЗАТЕЛЬНО JSON:
 \`\`\`json
 [{"type":"set_workout_plan","payload":{"kind":"hift","structure":"circuit","rounds":3,"roundRestSec":120,"exercises":[{"exerciseId":"hift_pullup","sets":1,"targetReps":6,"restSec":0}]}}]
 \`\`\``,
 
   planGpp: `Задача: GPP вечер — тип указан в сообщении оператора (push|pull|core|legs).
-Используй foundation.allowedExerciseIds для этого gppSubtype, foundation.setLogsByKind, foundation.fitnessLevels.gpp.
-ПРАВИЛА:
-- 6–10 упражнений, structure=straight_sets, последние 2–3 только measure=seconds (статика).
-- 3 подхода (4 только если последние 3 GPP сессии ≥80% успеха).
-- Отдых 60–120с по сложности между подходами ОДНОГО упражнения.
-- На грани возможностей по логам 7 дней.
+ЭТАЛОН СТРУКТУРЫ: foundation.referenceWorkoutTemplates[gpp_push|gpp_pull|gpp_legs|gpp_core] — для core и legs один и тот же список (gpp_legs = gpp_core).
+Также: foundation.allowedExerciseIds для gppSubtype, foundation.setLogsByKind, foundation.fitnessLevels.gpp.
+ПРАВИЛА СТРУКТУРЫ (как в эталоне):
+- Ровно 7 упражнений, тот же порядок и exerciseId из эталона, где оператор не проваливал 2 сессии подряд.
+- structure=straight_sets; подходы и restSec как в эталоне (±1 подход только при ≥80% успеха 3 сессии подряд, макс 4).
+НАГРУЗКА по fitnessLevels.gpp:
+- beginner / novice: targetReps/targetSeconds близки к эталону (±10%).
+- medium: +10–20% к эталону или по setLogsByKind.
+- pro / ayanakoji: на грани по логам 7 дней; до 4 подходов при стабильном успехе.
+- Замена 1–2 упражнений из allowedExerciseIds того же паттерна допустима при провале, без смены общей схемы (7 упражнений).
 JSON с kind=gpp_push|gpp_pull|gpp_core|gpp_legs и gppSubtype.`,
 
   planWarmup: `Задача: утренняя зарядка 15–25 мин. kind=warmup, structure=straight_sets.

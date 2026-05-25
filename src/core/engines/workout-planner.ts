@@ -1,8 +1,13 @@
 import {
   getCatalogExerciseById,
   getExercisesForKind,
-  gppExercisesForSubtype,
 } from '@/content/exercises';
+import {
+  buildPlannedFromTemplate,
+  getLocalTemplate,
+  LOCAL_HIFT,
+  templateNotesLabel,
+} from '@/content/exercises/local-workout-templates';
 import { BAR_EXERCISES } from '@/content/exercises-bars';
 import { TASK_KEYS } from '@/content/task-keys';
 import { db, dateKeyDaysAgo, todayKey, uid, weekdayIndex } from '../db';
@@ -224,12 +229,7 @@ async function plannedFromCatalog(
 }
 
 export async function buildHiftPlanLocal(date = todayKey()): Promise<WorkoutPlan> {
-  const levels = await getFitnessLevels();
-  const tier = tierForWorkoutKind(levels, 'hift');
-  const pool = getExercisesForKind('hift', tier).filter((e) => e.measure === 'reps');
-  const count = 5 + (Math.random() > 0.5 ? 1 : 0);
-  const picked = shufflePick(pool, count);
-  const exercises = await Promise.all(picked.map((e) => plannedFromCatalog(e, 1, 0)));
+  const exercises = buildPlannedFromTemplate(LOCAL_HIFT);
 
   const plan: WorkoutPlan = {
     id: uid(),
@@ -238,10 +238,10 @@ export async function buildHiftPlanLocal(date = todayKey()): Promise<WorkoutPlan
     structure: 'circuit',
     rounds: 3,
     roundRestSec: 120,
-    circuitExerciseIds: picked.map((e) => e.id),
+    circuitExerciseIds: LOCAL_HIFT.map((e) => e.exerciseId),
     exercises,
     status: 'planned',
-    notes: 'Локальный HIFT (без ИИ)',
+    notes: 'Фиксированный HIFT (без ИИ)',
   };
   await db.workoutPlans.put(plan);
   return plan;
@@ -252,19 +252,8 @@ export async function buildGppPlanLocal(
   date = todayKey()
 ): Promise<WorkoutPlan> {
   const kind = gppKindFromSubtype(subtype);
-  const levels = await getFitnessLevels();
-  const tier = tierForWorkoutKind(levels, kind);
-  const pool = gppExercisesForSubtype(subtype, tier);
-  const staticPool = pool.filter((e) => e.isStatic || e.measure === 'seconds');
-  const dynamicPool = pool.filter((e) => !e.isStatic && e.measure === 'reps');
-  const total = 6 + Math.floor(Math.random() * 3);
-  const staticCount = Math.min(3, Math.max(2, Math.floor(total * 0.3)));
-  const dynamicCount = total - staticCount;
-  const picked = [
-    ...shufflePick(dynamicPool, dynamicCount),
-    ...shufflePick(staticPool, staticCount),
-  ];
-  const exercises = await Promise.all(picked.map((e) => plannedFromCatalog(e, 3)));
+  const template = getLocalTemplate(subtype);
+  const exercises = buildPlannedFromTemplate(template);
 
   const plan: WorkoutPlan = {
     id: uid(),
@@ -274,7 +263,7 @@ export async function buildGppPlanLocal(
     gppSubtype: subtype,
     exercises,
     status: 'planned',
-    notes: `Локальный GPP ${subtype}`,
+    notes: `Фиксированный GPP ${subtype} (без ИИ) · ${templateNotesLabel(template)}`,
   };
   await db.workoutPlans.put(plan);
   return plan;
