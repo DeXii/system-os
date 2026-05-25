@@ -88,7 +88,7 @@ npm run dev
 | CORS / DIRECTOR offline | Worker задеплоен, `VITE_GROQ_PROXY_URL` верный |
 | «Сгенерировать план» / DIRECTOR зависает на «Запрос к Groq...» | Обновите страницу после деплоя (Ctrl+Shift+R) — нужна миграция IndexedDB v10. В консоли не должно быть `KeyPath ... is not indexed` |
 | Таймаут Groq 90 с | Повторите запрос; при стабильных таймаутах проверьте worker и модель в ARCHIVE |
-| `Failed to fetch` после «Запрос к Groq...» | Тяжёлый запрос + таймаут worker (~30 с на Free). Обновите приложение, проверьте `VITE_GROQ_PROXY_URL` (https). При необходимости Paid Worker или модель `llama-3.1-8b-instant` в ARCHIVE |
+| `Failed to fetch` после «Запрос к Groq...» | Тяжёлый запрос + таймаут worker (~30 с на Free). Обычные кнопки DIRECTOR отправляют в Groq только **7 календарных дней** журналов; «Анализ · 14/30 дней» — полный контекст за 14/30 дней (тяжелее). Проверьте VPN/proxy. При необходимости Paid Worker или модель `llama-3.1-8b-instant` в ARCHIVE |
 | console.groq.com 403 Forbidden | Гео-блок; ключ создавать через VPN. На работу DIRECTOR через worker не влияет, если `/health` и Groq ping OK |
 | Worker 404 / ERR_CONNECTION_RESET | `npx wrangler deploy` в `workers/groq-proxy`; URL в secrets = URL из вывода deploy; curl `.../health` и POST `.../v1/chat/completions` (см. ниже) |
 | Groq 403 в ответе DIRECTOR | Новый API key через VPN → `wrangler secret put GROQ_API_KEY` |

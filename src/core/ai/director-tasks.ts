@@ -40,6 +40,22 @@ export const DIRECTOR_TASKS = [
     core: true,
   },
   {
+    id: 'deepAnalysis14d',
+    label: 'Анализ · 14 дней',
+    category: 'system',
+    defaultScope: 'full',
+    description: 'Полный системный разбор за 14 календарных дней',
+    core: true,
+  },
+  {
+    id: 'deepAnalysis30d',
+    label: 'Анализ · 30 дней',
+    category: 'system',
+    defaultScope: 'full',
+    description: 'Полный системный разбор за 30 календарных дней',
+    core: true,
+  },
+  {
     id: 'pdpReview',
     label: 'PDP Review',
     category: 'system',
@@ -189,4 +205,20 @@ export function resolveScope(
   if (explicit) return explicit;
   const meta = getTaskMeta(taskId);
   return meta?.defaultScope ?? 'command';
+}
+
+export type ContextLookbackDays = 7 | 14 | 30;
+
+export function resolveLookbackDays(
+  taskId: TaskId,
+  explicit?: ContextLookbackDays
+): ContextLookbackDays {
+  if (explicit) return explicit;
+  if (taskId === 'deepAnalysis14d') return 14;
+  if (taskId === 'deepAnalysis30d') return 30;
+  return 7;
+}
+
+export function isDeepAnalysisTask(taskId: TaskId): boolean {
+  return taskId === 'deepAnalysis14d' || taskId === 'deepAnalysis30d';
 }

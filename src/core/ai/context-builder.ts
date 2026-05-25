@@ -30,6 +30,16 @@ import {
 import { getReadingProgressByLevel } from '../engines/library-books';
 import type { SetLog } from '../domain/types';
 
+export type ContextLookbackDays = 7 | 14 | 30;
+
+export function sinceForLookback(lookbackDays: ContextLookbackDays): string {
+  return dateKeyDaysAgo(lookbackDays - 1);
+}
+
+function filterDated<T extends { date: string }>(items: T[], since: string): T[] {
+  return items.filter((e) => e.date >= since);
+}
+
 async function buildSetLogsSummary(since: string) {
   const logs = await db.setLogs.where('date').aboveOrEqual(since).toArray();
   const byExercise = new Map<
@@ -60,67 +70,14 @@ async function buildSetLogsSummary(since: string) {
   return [...byExercise.values()].sort((a, b) => b.lastDate.localeCompare(a.lastDate));
 }
 
-function trimRecordArrays(
-  block: Record<string, unknown>,
-  limits: Record<string, number>
-): Record<string, unknown> {
-  const out = { ...block };
-  for (const [key, max] of Object.entries(limits)) {
-    const val = out[key];
-    if (Array.isArray(val)) out[key] = val.slice(0, max);
-  }
-  return out;
-}
-
-/** Shrinks context JSON before Groq to avoid worker timeouts on Cloudflare Free. */
-function trimContextForGroq(
-  ctx: Record<string, unknown>,
+function omitExerciseCatalog(
+  foundation: Record<string, unknown>,
   effectiveScope: string
 ): Record<string, unknown> {
-  const out = { ...ctx };
-
-  if (out.foundation && typeof out.foundation === 'object') {
-    const f = trimRecordArrays(out.foundation as Record<string, unknown>, {
-      recentSetLogs: 10,
-      trainingSessionsLast14d: 5,
-      workoutPlansLast7d: 7,
-      bftHistory: 3,
-      acftHistory: 2,
-    });
-    if (effectiveScope !== 'foundation') {
-      delete f.exerciseCatalog;
-    }
-    out.foundation = f;
-  }
-
-  if (out.regulation && typeof out.regulation === 'object') {
-    out.regulation = trimRecordArrays(out.regulation as Record<string, unknown>, {
-      hrvRecent: 5,
-      pstRecent: 3,
-    });
-  }
-
-  if (out.mind && typeof out.mind === 'object') {
-    out.mind = trimRecordArrays(out.mind as Record<string, unknown>, {
-      recentScenarios: 2,
-      recentDecisions: 2,
-    });
-  }
-
-  if (out.influence && typeof out.influence === 'object') {
-    out.influence = trimRecordArrays(out.influence as Record<string, unknown>, {
-      recentEntries: 3,
-    });
-  }
-
-  if (out.recent && typeof out.recent === 'object') {
-    out.recent = trimRecordArrays(out.recent as Record<string, unknown>, {
-      hrv: 5,
-      training: 5,
-    });
-  }
-
-  return out;
+  if (effectiveScope === 'foundation') return foundation;
+  const f = { ...foundation };
+  delete f.exerciseCatalog;
+  return f;
 }
 
 function selectContextPayload(
@@ -137,6 +94,7 @@ function selectContextPayload(
 
   const scoped: Record<string, unknown> = {
     date: fullContext.date,
+    contextLookbackDays: fullContext.contextLookbackDays,
     scope: effectiveScope,
     operator: fullContext.operator,
     schedule: fullContext.schedule,
@@ -164,17 +122,15 @@ function selectContextPayload(
         readinessFoundation: regulation.readinessFoundation,
       };
       scoped.regulation = {
-        hrvTrend14d: regulation.hrvTrend14d,
+        hrvTrendInWindow: regulation.hrvTrendInWindow,
         readinessRegulation: regulation.readinessRegulation,
         readinessFoundation: regulation.readinessFoundation,
-        hrvRecent: Array.isArray(regulation.hrvRecent)
-          ? (regulation.hrvRecent as unknown[]).slice(0, 5)
-          : regulation.hrvRecent,
+        hrvRecent: regulation.hrvRecent,
         breathing7d: regulation.breathing7d,
       };
       break;
     case 'foundation':
-      scoped.foundation = fullContext.foundation;
+      scoped.foundation = omitExerciseCatalog(foundation, effectiveScope);
       break;
     case 'regulation':
       scoped.regulation = fullContext.regulation;
@@ -196,7 +152,7 @@ function selectContextPayload(
     case 'integration':
       scoped.integration = fullContext.integration;
       scoped.foundation = { bftHistory: foundation.bftHistory };
-      scoped.regulation = { hrvTrend14d: regulation.hrvTrend14d };
+      scoped.regulation = { hrvTrendInWindow: regulation.hrvTrendInWindow };
       scoped.mind = { ops7d: (fullContext.mind as Record<string, unknown>).ops7d };
       scoped.influence = { ops7d: (fullContext.influence as Record<string, unknown>).ops7d };
       break;
@@ -204,13 +160,24 @@ function selectContextPayload(
       break;
   }
 
+  if (scoped.foundation && typeof scoped.foundation === 'object') {
+    scoped.foundation = omitExerciseCatalog(
+      scoped.foundation as Record<string, unknown>,
+      effectiveScope
+    );
+  }
+
   return scoped;
 }
 
-export async function buildDirectorContext(scope?: string): Promise<string> {
+export async function buildDirectorContext(
+  scope?: string,
+  lookbackDays: ContextLookbackDays = 7
+): Promise<string> {
   const today = todayKey();
   const yesterday = dateKeyDaysAgo(1);
-  const since14 = dateKeyDaysAgo(13);
+  const since = sinceForLookback(lookbackDays);
+
   const profile = await db.operator.toCollection().first();
   const readiness = await computeReadiness();
   const hints = await getRuleHints();
@@ -221,26 +188,51 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
   const missions = await db.missions.where('date').equals(today).toArray();
   const protocol = await db.protocolItems.where('date').equals(today).toArray();
   const dailyLog = await db.dailyLogs.where('date').equals(today).first();
-  const lastAcft = await db.acftEvents.orderBy('date').reverse().first();
-  const acftHistory = await db.acftEvents.orderBy('date').reverse().limit(3).toArray();
-  const bftHistory = await db.bftEvents.orderBy('date').reverse().limit(5).toArray();
-  const since7 = dateKeyDaysAgo(6);
-  const lastHrv = await db.hrvEntries.orderBy('date').reverse().limit(7).toArray();
-  const hrvTrend = await getHrvTrend(14);
+
+  const acftInWindow = filterDated(
+    await db.acftEvents.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => b.date.localeCompare(a.date));
+  const acftHistory = acftInWindow;
+  const lastAcft = acftHistory[0] ?? null;
+
+  const bftHistory = filterDated(
+    await db.bftEvents.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => b.date.localeCompare(a.date));
+
+  const hrvInWindow = filterDated(
+    await db.hrvEntries.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => b.date.localeCompare(a.date));
+  const lastHrv = hrvInWindow;
+
+  const hrvTrend = await getHrvTrend(lookbackDays);
   const hrvBaseline = await getHrvBaseline14d();
   const breathing7d = await getBreathing7dSummary();
   const regulationStreak = await getRegulationStreak();
-  const stressLogs7d = await db.stressLogs.where('date').aboveOrEqual(since7).toArray();
-  const mindful7d = await db.mindfulnessSessions.where('date').aboveOrEqual(since7).toArray();
-  const pstRecent = await db.pstEntries.orderBy('date').reverse().limit(5).toArray();
-  const trainingSessions = await db.trainingSessions
-    .where('date')
-    .aboveOrEqual(since14)
-    .toArray();
-  const workoutPlansHistory = await db.workoutPlans
-    .where('date')
-    .aboveOrEqual(dateKeyDaysAgo(6))
-    .toArray();
+  const stressLogsInWindow = filterDated(
+    await db.stressLogs.where('date').aboveOrEqual(since).toArray(),
+    since
+  );
+  const mindfulInWindow = filterDated(
+    await db.mindfulnessSessions.where('date').aboveOrEqual(since).toArray(),
+    since
+  );
+  const pstRecent = filterDated(
+    await db.pstEntries.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => b.date.localeCompare(a.date));
+
+  const trainingSessions = filterDated(
+    await db.trainingSessions.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => b.date.localeCompare(a.date));
+
+  const workoutPlansHistory = filterDated(
+    await db.workoutPlans.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => b.date.localeCompare(a.date));
 
   const yesterdayPending = await db.missions
     .where('date')
@@ -251,8 +243,11 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
   const yesterdayReport = await db.dayReports.where('date').equals(yesterday).first();
   const todayReport = await db.dayReports.where('date').equals(today).first();
 
-  const weekReports = await db.dayReports.where('date').aboveOrEqual(since7).toArray();
-  const complianceTrend = weekReports.map((r) => ({
+  const reportsInWindow = filterDated(
+    await db.dayReports.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => a.date.localeCompare(b.date));
+  const complianceTrend = reportsInWindow.map((r) => ({
     date: r.date,
     compliance: r.compliance,
     debriefDone: r.debriefDone,
@@ -266,16 +261,19 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
   const weekTemplate = await getWeekTemplate();
   const calibration = await getCalibration();
   const workoutPlan = await getTodayWorkoutPlan(today);
-  const setLogsSummary = await buildSetLogsSummary(since14);
-  const recentSetLogs = await db.setLogs.orderBy('date').reverse().limit(30).toArray();
+  const setLogsSummary = await buildSetLogsSummary(since);
+  const recentSetLogs = filterDated(
+    await db.setLogs.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => b.date.localeCompare(a.date));
 
   const regulationBlock = {
-    hrvTrend14d: hrvTrend,
+    hrvTrendInWindow: hrvTrend,
     hrvBaseline14d: hrvBaseline,
     hrvRecent: lastHrv,
     breathing7d,
-    mindfulness7d: mindful7d.length,
-    stressLogs7d: stressLogs7d.length,
+    mindfulnessInWindow: mindfulInWindow.length,
+    stressLogsInWindow: stressLogsInWindow.length,
     regulationStreak,
     pstRecent,
     readinessRegulation: readiness.regulation,
@@ -284,14 +282,20 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
   };
 
   const mindOps = await getMindOpsSummary();
-  const chessTrend = await getChessRatingTrend(30);
-  const recentScenarios = await db.scenarios.orderBy('date').reverse().limit(3).toArray();
-  const recentDecisions = await db.decisionLogs.orderBy('date').reverse().limit(3).toArray();
+  const chessTrend = await getChessRatingTrend(lookbackDays);
+  const recentScenarios = filterDated(
+    await db.scenarios.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => b.date.localeCompare(a.date));
+  const recentDecisions = filterDated(
+    await db.decisionLogs.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => b.date.localeCompare(a.date));
   const readingProgress = await getReadingProgressByLevel();
   const cognitiveThrottle = shouldThrottleCognitiveLoad(readiness);
 
   const mindBlock = {
-    chessTrend30d: chessTrend,
+    chessTrendInWindow: chessTrend,
     ops7d: mindOps,
     recentScenarios,
     recentDecisions,
@@ -301,11 +305,10 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
   };
 
   const influenceOps = await getInfluenceOpsSummary();
-  const recentInfluence = await db.influenceEntries
-    .orderBy('date')
-    .reverse()
-    .limit(5)
-    .toArray();
+  const recentInfluence = filterDated(
+    await db.influenceEntries.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => b.date.localeCompare(a.date));
   const influenceThrottle = shouldThrottleInfluence(readiness);
 
   const influenceBlock = {
@@ -357,8 +360,8 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
       targetReps: l.targetReps,
       setIndex: l.setIndex,
     })),
-    trainingSessionsLast14d: trainingSessions,
-    workoutPlansLast7d: workoutPlansHistory.map((p) => ({
+    trainingSessionsInWindow: trainingSessions,
+    workoutPlansInWindow: workoutPlansHistory.map((p) => ({
       date: p.date,
       status: p.status,
       exerciseCount: p.exercises.length,
@@ -375,6 +378,8 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
 
   const fullContext = {
     date: today,
+    contextLookbackDays: lookbackDays,
+    contextSinceDate: since,
     scope: scope ?? 'full',
     operator: profile
       ? {
@@ -428,7 +433,7 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
             debriefDone: yesterdayReport.debriefDone,
           }
         : null,
-      trend7d: complianceTrend,
+      trendInWindow: complianceTrend,
     },
     yesterdayPendingMissions: yesterdayPending.map((m) => ({
       id: m.id,
@@ -456,10 +461,10 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
       debriefDone: todayReport?.debriefDone ?? false,
     },
     recent: {
-      acft: lastAcft ?? null,
+      acft: lastAcft,
       bft: bftHistory[0] ?? null,
       hrv: lastHrv,
-      training: trainingSessions.slice(0, 5),
+      training: trainingSessions,
     },
   };
 
@@ -468,6 +473,5 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
     fullContext as unknown as Record<string, unknown>,
     effectiveScope
   );
-  const trimmed = trimContextForGroq(payload, effectiveScope);
-  return JSON.stringify(trimmed);
+  return JSON.stringify(payload);
 }

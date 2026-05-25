@@ -4,7 +4,7 @@ import {
   getDirectorStatus,
   testDirectorConnection,
 } from '@/core/ai/director-service';
-import { getTasksByCategory, type TaskId } from '@/core/ai/director-tasks';
+import { getTasksByCategory, isDeepAnalysisTask, type TaskId } from '@/core/ai/director-tasks';
 import { useDirectorRunner } from './hooks/useDirectorRunner';
 import { ActionCards } from './components/ActionCards';
 import { GlossaryZone } from '@/ui/glossary';
@@ -87,7 +87,7 @@ export function DirectorModule({ onOpenArchive }: Props) {
       </div>
 
       {(['command', 'system', 'coach', 'utility'] as const).map((cat) => {
-        const tasks = categories[cat].filter((t) => t.core);
+        const tasks = categories[cat].filter((t) => t.core && !isDeepAnalysisTask(t.id as TaskId));
         if (!tasks.length) return null;
         return (
           <div key={cat} className="director-hub-section">
@@ -109,6 +109,30 @@ export function DirectorModule({ onOpenArchive }: Props) {
           </div>
         );
       })}
+
+      <div className="director-hub-section" style={{ marginTop: '1rem' }}>
+        <h3>Глубокий анализ</h3>
+        <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
+          Полный разбор за 14 или 30 дней (все записи в окне). Обычные кнопки выше — только последние 7
+          дней.
+        </p>
+        <div className="director-hub-grid">
+          {categories.system
+            .filter((t) => t.core && isDeepAnalysisTask(t.id as TaskId))
+            .map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className="btn btn-sm"
+                disabled={loading || status !== 'online'}
+                onClick={() => handleRun(t.id as TaskId)}
+                title={t.description}
+              >
+                {t.label}
+              </button>
+            ))}
+        </div>
+      </div>
 
       {output && (
         <div className="panel" style={{ marginBottom: '1rem' }}>

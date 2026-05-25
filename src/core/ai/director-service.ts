@@ -6,7 +6,13 @@ import { applyDirectorActions as applyKernelActions } from '../engines/os-kernel
 import { buildDirectorContext } from './context-builder';
 import { parseAiActions, stripActionsBlock } from './action-parser';
 import { DIRECTOR_MASTER_PROMPT, TASK_ADDENDUMS } from './prompts/director-master';
-import { resolveScope, type TaskId } from './director-tasks';
+import {
+  isDeepAnalysisTask,
+  resolveLookbackDays,
+  resolveScope,
+  type ContextLookbackDays,
+  type TaskId,
+} from './director-tasks';
 import { todayKey } from '../db';
 import { callGroq, testProxyHealth } from './groq-client';
 
@@ -67,9 +73,11 @@ export function getDirectorStatus(): 'online' | 'offline' | 'needs_config' {
   return v.ok ? 'online' : cfg.proxyUrl || cfg.apiKey ? 'needs_config' : 'offline';
 }
 
-function maxTokensForTask(taskId: TaskId): number {
-  if (taskId === 'weeklyAudit' || taskId === 'freeCommand') return 2048;
-  return 1024;
+const MAX_TOKENS_LOOKBACK_7 = 2048;
+const MAX_TOKENS_DEEP = 8192;
+
+function maxTokensForLookback(lookbackDays: ContextLookbackDays): number {
+  return lookbackDays === 7 ? MAX_TOKENS_LOOKBACK_7 : MAX_TOKENS_DEEP;
 }
 
 export async function runDirectorTask(
@@ -77,6 +85,7 @@ export async function runDirectorTask(
   options?: {
     userMessage?: string;
     scope?: ModuleId | 'full';
+    lookbackDays?: ContextLookbackDays;
     onProgress?: (message: string) => void;
   }
 ): Promise<{ ok: true; insight: AiInsight } | { ok: false; error: string }> {
@@ -84,11 +93,14 @@ export async function runDirectorTask(
   const valid = validateDirectorConfig(cfg);
   if (!valid.ok) return { ok: false, error: valid.error ?? 'Invalid config' };
 
-  const scope = resolveScope(taskId, options?.scope);
+  const lookbackDays = resolveLookbackDays(taskId, options?.lookbackDays);
+  const scope = isDeepAnalysisTask(taskId)
+    ? 'full'
+    : resolveScope(taskId, options?.scope);
 
   try {
-    options?.onProgress?.('Сбор контекста...');
-    const context = await buildDirectorContext(scope);
+    options?.onProgress?.(`Сбор контекста (${lookbackDays} дн.)...`);
+    const context = await buildDirectorContext(scope, lookbackDays);
     const addendum = TASK_ADDENDUMS[taskId] ?? '';
     const system = `${DIRECTOR_MASTER_PROMPT}\n\n---\n${addendum}`;
     const user =
@@ -97,7 +109,7 @@ export async function runDirectorTask(
 
     options?.onProgress?.('Запрос к Groq...');
     const result = await callGroq(system, user, cfg, {
-      maxTokens: maxTokensForTask(taskId),
+      maxTokens: maxTokensForLookback(lookbackDays),
     });
     if (!result.ok) {
       await emitKernel(
