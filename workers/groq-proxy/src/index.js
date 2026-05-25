@@ -16,8 +16,10 @@ export default {
     }
 
     const url = new URL(request.url);
+    const path = url.pathname.replace(/\/$/, '') || '/';
+
     const isHealth =
-      request.method === 'GET' && (url.pathname === '/' || url.pathname === '/health');
+      request.method === 'GET' && (path === '/' || path === '/health');
 
     if (isHealth) {
       return new Response(
@@ -28,6 +30,20 @@ export default {
         }),
         {
           status: 200,
+          headers: { ...cors, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    if (!path.startsWith('/v1')) {
+      return new Response(
+        JSON.stringify({
+          error: 'Not found',
+          hint: 'GET /health — проверка worker; POST /v1/chat/completions — Groq API',
+          path,
+        }),
+        {
+          status: 404,
           headers: { ...cors, 'Content-Type': 'application/json' },
         }
       );
@@ -54,7 +70,8 @@ export default {
       );
     }
 
-    const target = `https://api.groq.com/openai/v1${url.pathname.replace(/^\/v1/, '')}${url.search}`;
+    const groqPath = path.replace(/^\/v1/, '') || '/';
+    const target = `https://api.groq.com/openai/v1${groqPath}${url.search}`;
 
     try {
       const headers = new Headers();
