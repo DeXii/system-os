@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   getDirectorConfig,
   getDirectorStatus,
+  resetDirectorProxyToBuild,
   setDirectorConfig,
   testDirectorConnection,
   testProxyHealth,
@@ -24,9 +25,22 @@ export function GroqSettingsPanel({ onOpenDirector }: Props) {
   const status = getDirectorStatus();
   const serverKey = usesServerGroqKey();
 
+  const builtInProxy = (import.meta.env.VITE_GROQ_PROXY_URL || '').trim().replace(/\/$/, '');
+
   const saveCfg = () => {
     setDirectorConfig(cfg);
     setTestMsg('Настройки сохранены');
+  };
+
+  const resetProxyUrl = () => {
+    const next = resetDirectorProxyToBuild();
+    setCfg(next);
+    setHealthMsg('');
+    setTestMsg(
+      builtInProxy
+        ? `URL proxy сброшен к сборке: ${builtInProxy}`
+        : 'localStorage очищен; укажите Proxy URL вручную или задайте VITE_GROQ_PROXY_URL при сборке.'
+    );
   };
 
   const testHealth = async () => {
@@ -83,12 +97,19 @@ export function GroqSettingsPanel({ onOpenDirector }: Props) {
           onChange={(e) => setCfg({ ...cfg, proxyUrl: e.target.value })}
           placeholder="https://ayanakoji-groq-proxy.dexi.workers.dev"
         />
+        {builtInProxy && cfg.proxyUrl !== builtInProxy && (
+          <p style={{ fontSize: 10, color: 'var(--warn, #c9a227)', marginTop: 4 }}>
+            В localStorage другой URL, чем в сборке ({builtInProxy}). Нажмите «Сбросить URL proxy».
+          </p>
+        )}
         {healthUrl && (
           <p style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
             Health:{' '}
             <a href={healthUrl} target="_blank" rel="noreferrer">
               {healthUrl}
             </a>
+            {' '}
+            — ожидается {`{"ok":true,"hasGroqKey":true}`}, не ответ Groq unknown_url.
           </p>
         )}
       </div>
@@ -120,6 +141,9 @@ export function GroqSettingsPanel({ onOpenDirector }: Props) {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button type="button" className="btn btn-primary" onClick={saveCfg}>
           Сохранить
+        </button>
+        <button type="button" className="btn btn-sm" onClick={resetProxyUrl}>
+          Сбросить URL proxy
         </button>
         <button type="button" className="btn" disabled={testingHealth} onClick={() => void testHealth()}>
           Проверить proxy (health)

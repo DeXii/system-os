@@ -45,6 +45,12 @@ export function setDirectorConfig(cfg: Partial<DirectorConfig>): void {
   if (cfg.model != null) localStorage.setItem(LS_MODEL, cfg.model);
 }
 
+/** Сброс Proxy URL к значению из сборки (VITE_GROQ_PROXY_URL), без override в localStorage. */
+export function resetDirectorProxyToBuild(): DirectorConfig {
+  localStorage.removeItem(LS_PROXY);
+  return getDirectorConfig();
+}
+
 export function validateDirectorConfig(cfg: DirectorConfig): { ok: boolean; error?: string } {
   if (!cfg.proxyUrl) {
     return { ok: false, error: 'Укажите Proxy URL (workers/groq-proxy)' };

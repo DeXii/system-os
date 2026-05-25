@@ -30,6 +30,47 @@ export function formatFetchError(e: unknown, proxyUrl?: string): string {
   return msg;
 }
 
+function parseHealthBody(bodyText: string): { ok: boolean; message: string } {
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(bodyText) as Record<string, unknown>;
+  } catch {
+    return { ok: false, message: `Неверный ответ worker: ${bodyText.slice(0, 120)}` };
+  }
+
+  const groqErr = data.error as { message?: string } | undefined;
+  const groqMsg = groqErr?.message ?? '';
+  if (
+    groqMsg.includes('unknown_url') ||
+    groqMsg.includes('/openai/v1/health') ||
+    groqMsg.includes('Unknown request URL')
+  ) {
+    return {
+      ok: false,
+      message:
+        'Worker устарел: /health уходит в Groq API. Выполните npm run proxy:deploy из корня проекта, затем обновите страницу /health.',
+    };
+  }
+
+  const health = data as { ok?: boolean; hasGroqKey?: boolean; service?: string };
+  if (health.ok === true && health.hasGroqKey) {
+    return { ok: true, message: `OK (${health.service ?? 'ayanakoji-groq-proxy'})` };
+  }
+  if (health.ok === true && !health.hasGroqKey) {
+    return {
+      ok: false,
+      message: 'Worker жив, но GROQ_API_KEY не задан. Выполните: npx wrangler secret put GROQ_API_KEY',
+    };
+  }
+
+  const hint = typeof data.hint === 'string' ? data.hint : '';
+  if (hint) {
+    return { ok: false, message: `Worker: ${hint}` };
+  }
+
+  return { ok: false, message: `Неожиданный ответ /health: ${bodyText.slice(0, 120)}` };
+}
+
 export function formatGroqHttpError(status: number, body: string): string {
   if (status === 403) {
     return (
@@ -56,20 +97,15 @@ export async function testProxyHealth(
       headers,
       signal: AbortSignal.timeout(15_000),
     });
-    if (!res.ok) {
+    const bodyText = await res.text();
+    const parsed = parseHealthBody(bodyText);
+    if (!res.ok && !parsed.message.includes('устарел')) {
       return {
         ok: false,
-        message: `HTTP ${res.status} — worker не найден или неверный URL. Передеплойте: wrangler deploy`,
+        message: `HTTP ${res.status}: ${bodyText.slice(0, 120)}`,
       };
     }
-    const data = (await res.json()) as { ok?: boolean; hasGroqKey?: boolean; service?: string };
-    if (!data.hasGroqKey) {
-      return {
-        ok: false,
-        message: 'Worker жив, но GROQ_API_KEY не задан. Выполните: npx wrangler secret put GROQ_API_KEY',
-      };
-    }
-    return { ok: true, message: `OK (${data.service ?? 'proxy'})` };
+    return parsed;
   } catch (e) {
     return { ok: false, message: formatFetchError(e, cfg.proxyUrl) };
   }

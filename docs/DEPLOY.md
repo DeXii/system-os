@@ -29,7 +29,15 @@ npx wrangler deploy
 
 Скопируйте URL worker (например `https://ayanakoji-groq-proxy.xxx.workers.dev`) → `VITE_GROQ_PROXY_URL` (без слэша в конце).
 
-Проверка после деплоя: откройте `https://ВАШ-WORKER.workers.dev/health` — должен быть JSON `{ "ok": true, "hasGroqKey": true }`.
+Проверка после деплоя: откройте `https://ВАШ-WORKER.workers.dev/health` — должен быть JSON:
+
+```json
+{"ok":true,"service":"ayanakoji-groq-proxy","hasGroqKey":true}
+```
+
+**Признак устаревшего worker:** в ответе `/health` текст Groq `unknown_url` / `GET /openai/v1/health` или заголовок `x-groq-region` в DevTools → Network. Нужен повторный `npm run proxy:deploy` из корня репозитория.
+
+Из корня репозитория: `npm run proxy:deploy` (то же, что `cd workers/groq-proxy && npm install && npx wrangler deploy`).
 
 Если задали `PROXY_TOKEN` на worker, тот же токен → `VITE_PROXY_TOKEN` в GitHub secrets и `.env`.
 
@@ -84,6 +92,8 @@ npm run dev
 | console.groq.com 403 Forbidden | Гео-блок; ключ создавать через VPN. На работу DIRECTOR через worker не влияет, если `/health` и Groq ping OK |
 | Worker 404 / ERR_CONNECTION_RESET | `npx wrangler deploy` в `workers/groq-proxy`; URL в secrets = URL из вывода deploy; curl `.../health` и POST `.../v1/chat/completions` (см. ниже) |
 | Groq 403 в ответе DIRECTOR | Новый API key через VPN → `wrangler secret put GROQ_API_KEY` |
+| `/health` показывает Groq `unknown_url` | На Cloudflare старая версия worker → `npm run proxy:deploy`, в ответе не должно быть `x-groq-region` |
+| URL в GitHub верный, ARCHIVE не работает | ARCHIVE → «Сбросить URL proxy» (localStorage перекрывает secret) |
 
 ### Проверка worker (PowerShell)
 
@@ -92,4 +102,8 @@ curl.exe -i "https://ВАШ-WORKER.workers.dev/health"
 curl.exe -i -X POST "https://ВАШ-WORKER.workers.dev/v1/chat/completions" -H "Content-Type: application/json" -d "{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":5}"
 ```
 
-Ожидается: `/health` → 200 JSON; POST → 200 с текстом от модели (не 404, не connection reset).
+Ожидается: `/health` → **200**, тело `{"ok":true,"hasGroqKey":true}`, **без** заголовка `x-groq-region`. POST → 200 с текстом от модели.
+
+### GitHub Action для worker (опционально)
+
+Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. Workflow `.github/workflows/deploy-groq-proxy.yml` деплоит worker при push в `workers/groq-proxy/**`.
