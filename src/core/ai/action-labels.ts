@@ -1,7 +1,7 @@
 import type { AiAction } from '../domain/types';
 
 export function formatActionSummary(action: AiAction): string {
-  const p = action.payload;
+  const p = action.payload ?? {};
   switch (action.type) {
     case 'add_mission':
       return `Миссия: ${String(p.title ?? '—')}${p.taskKey ? ` (${String(p.taskKey)})` : ''}`;
@@ -40,10 +40,11 @@ export function formatActionType(type: AiAction['type']): string {
 export function getWorkoutExercises(
   action: AiAction
 ): { exerciseId: string; sets?: number; targetReps?: number; restSec?: number }[] {
-  if (action.type !== 'set_workout_plan' || !Array.isArray(action.payload.exercises)) {
+  const exercises = action.payload?.exercises;
+  if (action.type !== 'set_workout_plan' || !Array.isArray(exercises)) {
     return [];
   }
-  return action.payload.exercises as {
+  return exercises.filter(Boolean) as {
     exerciseId: string;
     sets?: number;
     targetReps?: number;

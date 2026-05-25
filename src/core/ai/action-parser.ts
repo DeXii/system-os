@@ -6,18 +6,29 @@ export function parseAiActions(text: string): AiAction[] {
   try {
     const parsed = JSON.parse(match[1]) as AiAction[];
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (a) =>
-        a &&
-        typeof a.type === 'string' &&
-        (a.type === 'add_mission' ||
-          a.type === 'add_protocol' ||
-          a.type === 'log_note' ||
-          a.type === 'move_slot' ||
-          a.type === 'complete_slot' ||
-          a.type === 'add_schedule_slot' ||
-          a.type === 'set_workout_plan')
-    );
+    const validTypes = new Set([
+      'add_mission',
+      'add_protocol',
+      'log_note',
+      'move_slot',
+      'complete_slot',
+      'add_schedule_slot',
+      'set_workout_plan',
+    ]);
+    return parsed
+      .filter(
+        (a) =>
+          a &&
+          typeof a.type === 'string' &&
+          validTypes.has(a.type) &&
+          a.payload != null &&
+          typeof a.payload === 'object' &&
+          !Array.isArray(a.payload)
+      )
+      .map((a) => ({
+        type: a.type,
+        payload: a.payload as Record<string, unknown>,
+      })) as AiAction[];
   } catch {
     return [];
   }

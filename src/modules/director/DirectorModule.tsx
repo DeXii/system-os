@@ -140,7 +140,7 @@ export function DirectorModule({ onOpenArchive }: Props) {
           <div className="director-output">
             <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{output}</pre>
           </div>
-          {insight && insight.actions.length > 0 && (
+          {insight && !loading && insight.actions.length > 0 && (
             <ActionCards actions={insight.actions} loading={loading} onApply={applyActions} />
           )}
         </div>

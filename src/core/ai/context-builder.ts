@@ -392,14 +392,16 @@ export async function buildDirectorContext(
         }
       : null,
     schedule: {
-      todayQueue: todayQueue.map((s) => ({
-        rank: s.rank,
-        title: s.title,
-        type: s.type,
-        taskKey: s.taskKey,
-        status: s.status,
-        stage: s.stage,
-      })),
+      todayQueue: todayQueue
+        .filter((s): s is NonNullable<typeof s> => !!s)
+        .map((s) => ({
+          rank: s.rank,
+          title: s.title,
+          type: s.type,
+          taskKey: s.taskKey ?? s.id,
+          status: s.status,
+          stage: s.stage,
+        })),
       weekTemplateDays: Object.keys(weekTemplate.slots).length,
       pendingSlots: todayQueue.filter((s) => s.status === 'pending').length,
     },

@@ -69,7 +69,7 @@ export function DirectorTaskPanel({
               <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{output}</pre>
             </div>
           )}
-          {insight && insight.actions.length > 0 && (
+          {insight && !loading && insight.actions.length > 0 && (
             <ActionCards
               actions={insight.actions}
               loading={loading}
@@ -166,7 +166,7 @@ export function DirectorTaskPanel({
         </div>
       )}
 
-      {insight && insight.actions.length > 0 && (
+      {insight && !loading && insight.actions.length > 0 && (
         <ActionCards
           actions={insight.actions}
           loading={loading}

@@ -57,6 +57,7 @@ export function useDirectorRunner({
         return { ok: false as const, error: 'offline' };
       }
       setLoading(true);
+      setInsight(null);
       setOutput('Сбор контекста...');
       const taskScope = resolveScope(taskId, scope);
       try {

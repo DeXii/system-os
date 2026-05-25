@@ -77,6 +77,7 @@ export async function runCommandDirectorTask(
   onDone: () => void
 ): Promise<void> {
   setLoading(true);
+  setInsight(null);
   setOutput('Сбор контекста...');
   try {
     const res = await runDirectorTask(taskId, {

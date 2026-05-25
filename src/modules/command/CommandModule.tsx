@@ -228,7 +228,7 @@ export function CommandModule({ profile, readiness, onRefresh, onOpenIntegration
         <div className="panel" style={{ marginBottom: '1rem' }}>
           <div className="panel-title">DIRECTOR — последний ответ</div>
           <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{directorOutput}</pre>
-          {lastInsight && lastInsight.actions.length > 0 && (
+          {lastInsight && !directorLoading && lastInsight.actions.length > 0 && (
             <ActionCards
               actions={lastInsight.actions}
               loading={directorLoading}
