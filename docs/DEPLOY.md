@@ -29,7 +29,11 @@ npx wrangler deploy
 
 Скопируйте URL worker (например `https://ayanakoji-groq-proxy.xxx.workers.dev`) → `VITE_GROQ_PROXY_URL` (без слэша в конце).
 
+Проверка после деплоя: откройте `https://ВАШ-WORKER.workers.dev/health` — должен быть JSON `{ "ok": true, "hasGroqKey": true }`.
+
 Если задали `PROXY_TOKEN` на worker, тот же токен → `VITE_PROXY_TOKEN` в GitHub secrets и `.env`.
+
+**console.groq.com** без VPN может показывать 403 — создайте API key через VPN; приложение ходит в Groq через worker (Cloudflare), не из браузера напрямую.
 
 ## 3. GitHub репозиторий
 
@@ -77,3 +81,15 @@ npm run dev
 | «Сгенерировать план» / DIRECTOR зависает на «Запрос к Groq...» | Обновите страницу после деплоя (Ctrl+Shift+R) — нужна миграция IndexedDB v10. В консоли не должно быть `KeyPath ... is not indexed` |
 | Таймаут Groq 90 с | Повторите запрос; при стабильных таймаутах проверьте worker и модель в ARCHIVE |
 | `Failed to fetch` после «Запрос к Groq...» | Тяжёлый запрос + таймаут worker (~30 с на Free). Обновите приложение, проверьте `VITE_GROQ_PROXY_URL` (https). При необходимости Paid Worker или модель `llama-3.1-8b-instant` в ARCHIVE |
+| console.groq.com 403 Forbidden | Гео-блок; ключ создавать через VPN. На работу DIRECTOR через worker не влияет, если `/health` и Groq ping OK |
+| Worker 404 / ERR_CONNECTION_RESET | `npx wrangler deploy` в `workers/groq-proxy`; URL в secrets = URL из вывода deploy; curl `.../health` и POST `.../v1/chat/completions` (см. ниже) |
+| Groq 403 в ответе DIRECTOR | Новый API key через VPN → `wrangler secret put GROQ_API_KEY` |
+
+### Проверка worker (PowerShell)
+
+```powershell
+curl.exe -i "https://ВАШ-WORKER.workers.dev/health"
+curl.exe -i -X POST "https://ВАШ-WORKER.workers.dev/v1/chat/completions" -H "Content-Type: application/json" -d "{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":5}"
+```
+
+Ожидается: `/health` → 200 JSON; POST → 200 с текстом от модели (не 404, не connection reset).

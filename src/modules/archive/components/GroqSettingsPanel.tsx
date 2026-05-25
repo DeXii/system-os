@@ -4,6 +4,7 @@ import {
   getDirectorStatus,
   setDirectorConfig,
   testDirectorConnection,
+  testProxyHealth,
   usesServerGroqKey,
 } from '@/core/ai/director-service';
 import { GlossaryZone } from '@/ui/glossary';
@@ -17,13 +18,23 @@ interface Props {
 export function GroqSettingsPanel({ onOpenDirector }: Props) {
   const [cfg, setCfg] = useState(getDirectorConfig);
   const [testMsg, setTestMsg] = useState('');
+  const [healthMsg, setHealthMsg] = useState('');
   const [testing, setTesting] = useState(false);
+  const [testingHealth, setTestingHealth] = useState(false);
   const status = getDirectorStatus();
   const serverKey = usesServerGroqKey();
 
   const saveCfg = () => {
     setDirectorConfig(cfg);
     setTestMsg('Настройки сохранены');
+  };
+
+  const testHealth = async () => {
+    setTestingHealth(true);
+    setDirectorConfig(cfg);
+    const r = await testProxyHealth(cfg);
+    setHealthMsg(r.ok ? `Worker: ${r.message}` : `Worker: ${r.message}`);
+    setTestingHealth(false);
   };
 
   const test = async () => {
@@ -34,6 +45,8 @@ export function GroqSettingsPanel({ onOpenDirector }: Props) {
     setTesting(false);
   };
 
+  const healthUrl = cfg.proxyUrl ? `${cfg.proxyUrl.replace(/\/$/, '')}/health` : '';
+
   return (
     <div className="panel">
       <div className="panel-title">Groq / DIRECTOR Settings</div>
@@ -43,6 +56,11 @@ export function GroqSettingsPanel({ onOpenDirector }: Props) {
           {serverKey
             ? ' API key хранится на Cloudflare Worker — в браузере не нужен.'
             : ' Локальный режим: укажите API Key и Proxy URL.'}
+        </p>
+        <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
+          console.groq.com без VPN может показывать 403 Forbidden — это нормально для РФ.
+          Ключ создавайте через VPN; DIRECTOR обращается к Groq через worker (Cloudflare), не с
+          вашего IP.
         </p>
       </GlossaryZone>
       {!serverKey && (
@@ -63,8 +81,16 @@ export function GroqSettingsPanel({ onOpenDirector }: Props) {
           className="input"
           value={cfg.proxyUrl}
           onChange={(e) => setCfg({ ...cfg, proxyUrl: e.target.value })}
-          placeholder="https://your-worker.workers.dev"
+          placeholder="https://ayanakoji-groq-proxy.dexi.workers.dev"
         />
+        {healthUrl && (
+          <p style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
+            Health:{' '}
+            <a href={healthUrl} target="_blank" rel="noreferrer">
+              {healthUrl}
+            </a>
+          </p>
+        )}
       </div>
       {serverKey && (
         <div className="form-row">
@@ -87,13 +113,19 @@ export function GroqSettingsPanel({ onOpenDirector }: Props) {
           onChange={(e) => setCfg({ ...cfg, model: e.target.value })}
           placeholder={DEFAULT_MODEL}
         />
+        <p style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
+          При таймаутах попробуйте llama-3.1-8b-instant (быстрее на Free worker).
+        </p>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button type="button" className="btn btn-primary" onClick={saveCfg}>
           Сохранить
         </button>
+        <button type="button" className="btn" disabled={testingHealth} onClick={() => void testHealth()}>
+          Проверить proxy (health)
+        </button>
         <button type="button" className="btn" disabled={testing} onClick={() => void test()}>
-          Проверить связь
+          Проверить связь (Groq)
         </button>
         {onOpenDirector && (
           <button type="button" className="btn btn-sm" onClick={onOpenDirector}>
@@ -101,6 +133,7 @@ export function GroqSettingsPanel({ onOpenDirector }: Props) {
           </button>
         )}
       </div>
+      {healthMsg && <p style={{ marginTop: 8, fontSize: 12 }}>{healthMsg}</p>}
       {testMsg && <p style={{ marginTop: 8, fontSize: 12 }}>{testMsg}</p>}
     </div>
   );

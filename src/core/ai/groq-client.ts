@@ -5,15 +5,74 @@ export interface GroqCallOptions {
   maxTokens?: number;
 }
 
-function formatFetchError(e: unknown): string {
+function isConnectionError(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return (
+    msg === 'Failed to fetch' ||
+    lower.includes('connection reset') ||
+    lower.includes('network error') ||
+    lower.includes('load failed')
+  );
+}
+
+export function formatFetchError(e: unknown, proxyUrl?: string): string {
   const msg = e instanceof Error ? e.message : 'Network error';
-  if (msg === 'Failed to fetch') {
+  const cause =
+    e instanceof Error && e.cause instanceof Error ? String(e.cause.message) : '';
+  if (isConnectionError(msg) || isConnectionError(cause)) {
+    const healthHint = proxyUrl ? `${proxyUrl}/health` : '/health на worker URL';
     return (
-      'Сеть: не удалось достучаться до Groq proxy. Частые причины: таймаут Cloudflare Worker (~30 с на Free), ' +
-      'неверный Proxy URL, блокировка расширением. Проверьте ARCHIVE → Proxy URL и повторите с меньшей задачей.'
+      `Сеть: proxy недоступен (404 / connection reset). Откройте ${healthHint} в браузере, ` +
+      'выполните `npx wrangler deploy` в workers/groq-proxy, проверьте Proxy URL в ARCHIVE ' +
+      '(должен совпадать с VITE_GROQ_PROXY_URL в GitHub secrets).'
     );
   }
   return msg;
+}
+
+export function formatGroqHttpError(status: number, body: string): string {
+  if (status === 403) {
+    return (
+      'Groq 403 Forbidden: ключ недействителен или доступ ограничен. ' +
+      'Создайте API key в console.groq.com через VPN; DIRECTOR ходит в Groq через Cloudflare Worker, не с вашего IP.'
+    );
+  }
+  return `Groq ${status}: ${body.slice(0, 200)}`;
+}
+
+export async function testProxyHealth(
+  cfg: DirectorConfig
+): Promise<{ ok: boolean; message: string }> {
+  if (!cfg.proxyUrl) {
+    return { ok: false, message: 'Укажите Proxy URL' };
+  }
+  try {
+    const headers: Record<string, string> = {};
+    if (cfg.proxyToken) {
+      headers['X-Ayanakoji-Token'] = cfg.proxyToken;
+    }
+    const res = await fetch(`${cfg.proxyUrl}/health`, {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      return {
+        ok: false,
+        message: `HTTP ${res.status} — worker не найден или неверный URL. Передеплойте: wrangler deploy`,
+      };
+    }
+    const data = (await res.json()) as { ok?: boolean; hasGroqKey?: boolean; service?: string };
+    if (!data.hasGroqKey) {
+      return {
+        ok: false,
+        message: 'Worker жив, но GROQ_API_KEY не задан. Выполните: npx wrangler secret put GROQ_API_KEY',
+      };
+    }
+    return { ok: true, message: `OK (${data.service ?? 'proxy'})` };
+  } catch (e) {
+    return { ok: false, message: formatFetchError(e, cfg.proxyUrl) };
+  }
 }
 
 export async function callGroq(
@@ -49,7 +108,7 @@ export async function callGroq(
     });
     if (!res.ok) {
       const err = await res.text();
-      return { ok: false, error: `Groq ${res.status}: ${err.slice(0, 200)}` };
+      return { ok: false, error: formatGroqHttpError(res.status, err) };
     }
     const data = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
@@ -60,6 +119,6 @@ export async function callGroq(
     if (e instanceof Error && e.name === 'TimeoutError') {
       return { ok: false, error: 'Таймаут Groq (90 с). Повторите или сократите запрос.' };
     }
-    return { ok: false, error: formatFetchError(e) };
+    return { ok: false, error: formatFetchError(e, cfg.proxyUrl) };
   }
 }

@@ -8,7 +8,9 @@ import { parseAiActions, stripActionsBlock } from './action-parser';
 import { DIRECTOR_MASTER_PROMPT, TASK_ADDENDUMS } from './prompts/director-master';
 import { resolveScope, type TaskId } from './director-tasks';
 import { todayKey } from '../db';
-import { callGroq } from './groq-client';
+import { callGroq, testProxyHealth } from './groq-client';
+
+export { testProxyHealth } from './groq-client';
 
 export type { TaskId } from './director-tasks';
 
@@ -148,11 +150,14 @@ export async function testDirectorConnection(): Promise<{ ok: boolean; message: 
   const valid = validateDirectorConfig(cfg);
   if (!valid.ok) return { ok: false, message: valid.error ?? 'Invalid' };
 
-  const result = await callGroq(
-    'Ответь одним словом: ONLINE',
-    'ping',
-    cfg
-  );
-  if (!result.ok) return { ok: false, message: result.error };
-  return { ok: true, message: result.text.slice(0, 80) };
+  const health = await testProxyHealth(cfg);
+  if (!health.ok) {
+    return { ok: false, message: `Worker: ${health.message}` };
+  }
+
+  const result = await callGroq('Ответь одним словом: ONLINE', 'ping', cfg, {
+    maxTokens: 16,
+  });
+  if (!result.ok) return { ok: false, message: `Groq: ${result.error}` };
+  return { ok: true, message: `Worker: ${health.message} · Groq: ${result.text.slice(0, 80)}` };
 }

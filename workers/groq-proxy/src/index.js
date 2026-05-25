@@ -15,6 +15,24 @@ export default {
       return new Response(null, { headers: cors });
     }
 
+    const url = new URL(request.url);
+    const isHealth =
+      request.method === 'GET' && (url.pathname === '/' || url.pathname === '/health');
+
+    if (isHealth) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          service: 'ayanakoji-groq-proxy',
+          hasGroqKey: Boolean(env.GROQ_API_KEY),
+        }),
+        {
+          status: 200,
+          headers: { ...cors, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     if (env.PROXY_TOKEN) {
       const token = request.headers.get('X-Ayanakoji-Token');
       if (token !== env.PROXY_TOKEN) {
@@ -36,7 +54,6 @@ export default {
       );
     }
 
-    const url = new URL(request.url);
     const target = `https://api.groq.com/openai/v1${url.pathname.replace(/^\/v1/, '')}${url.search}`;
 
     try {
