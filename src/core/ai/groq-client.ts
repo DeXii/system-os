@@ -25,6 +25,7 @@ export async function callGroq(
     const res = await fetch(`${cfg.proxyUrl}/v1/chat/completions`, {
       method: 'POST',
       headers,
+      signal: AbortSignal.timeout(90_000),
       body: JSON.stringify({
         model: cfg.model,
         messages: [
@@ -45,6 +46,9 @@ export async function callGroq(
     const text = data.choices?.[0]?.message?.content ?? '';
     return { ok: true, text };
   } catch (e) {
+    if (e instanceof Error && e.name === 'TimeoutError') {
+      return { ok: false, error: 'Таймаут Groq (90 с). Повторите или сократите запрос.' };
+    }
     return { ok: false, error: e instanceof Error ? e.message : 'Network error' };
   }
 }

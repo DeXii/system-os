@@ -238,6 +238,10 @@ export class AyanakojiDB extends Dexie {
     this.version(9).stores({
       glossaryCache: 'id, term',
     });
+    this.version(10).stores({
+      setLogs: 'id, date, workoutPlanId, exerciseId',
+      aiInsights: 'id, createdAt, taskId, scope',
+    });
   }
 }
 

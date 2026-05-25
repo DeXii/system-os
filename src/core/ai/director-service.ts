@@ -61,55 +61,71 @@ export function getDirectorStatus(): 'online' | 'offline' | 'needs_config' {
 
 export async function runDirectorTask(
   taskId: TaskId,
-  options?: { userMessage?: string; scope?: ModuleId | 'full' }
+  options?: {
+    userMessage?: string;
+    scope?: ModuleId | 'full';
+    onProgress?: (message: string) => void;
+  }
 ): Promise<{ ok: true; insight: AiInsight } | { ok: false; error: string }> {
   const cfg = getDirectorConfig();
   const valid = validateDirectorConfig(cfg);
   if (!valid.ok) return { ok: false, error: valid.error ?? 'Invalid config' };
 
   const scope = resolveScope(taskId, options?.scope);
-  const context = await buildDirectorContext(scope);
-  const addendum = TASK_ADDENDUMS[taskId] ?? '';
-  const system = `${DIRECTOR_MASTER_PROMPT}\n\n---\n${addendum}`;
-  const user =
-    options?.userMessage ??
-    `Контекст оператора:\n${context}\n\nВыполни задачу: ${taskId}`;
 
-  const result = await callGroq(system, user, cfg);
-  if (!result.ok) return result;
+  try {
+    options?.onProgress?.('Сбор контекста...');
+    const context = await buildDirectorContext(scope);
+    const addendum = TASK_ADDENDUMS[taskId] ?? '';
+    const system = `${DIRECTOR_MASTER_PROMPT}\n\n---\n${addendum}`;
+    const user =
+      options?.userMessage ??
+      `Контекст оператора:\n${context}\n\nВыполни задачу: ${taskId}`;
 
-  const actions = parseAiActions(result.text);
-  const cleanText = stripActionsBlock(result.text);
+    options?.onProgress?.('Запрос к Groq...');
+    const result = await callGroq(system, user, cfg);
+    if (!result.ok) {
+      await emitKernel('director', `DIRECTOR: ${taskId} — ${result.error}`, 'error');
+      return result;
+    }
 
-  const insightScope =
-    scope === 'full' ? ('full' as const) : (scope as AiInsight['scope']);
+    const actions = parseAiActions(result.text);
+    const cleanText = stripActionsBlock(result.text);
 
-  const insight: AiInsight = {
-    id: uid(),
-    taskId,
-    scope: insightScope,
-    text: cleanText,
-    actions,
-    createdAt: new Date().toISOString(),
-  };
+    const insightScope =
+      scope === 'full' ? ('full' as const) : (scope as AiInsight['scope']);
 
-  await db.aiInsights.add(insight);
-  await db.aiMessages.add({
-    id: uid(),
-    role: 'assistant',
-    content: cleanText,
-    taskId,
-    createdAt: insight.createdAt,
-  });
+    const insight: AiInsight = {
+      id: uid(),
+      taskId,
+      scope: insightScope,
+      text: cleanText,
+      actions,
+      createdAt: new Date().toISOString(),
+    };
 
-  await emitKernel('director', `DIRECTOR: ${taskId} завершён`, 'success');
+    await db.aiInsights.add(insight);
+    await db.aiMessages.add({
+      id: uid(),
+      role: 'assistant',
+      content: cleanText,
+      taskId,
+      createdAt: insight.createdAt,
+    });
 
-  if (scope === 'command') {
-    if (taskId === 'morningBriefing') await markBriefingDone(todayKey());
-    if (taskId === 'eveningDebrief') await markDebriefDone(todayKey());
+    await emitKernel('director', `DIRECTOR: ${taskId} завершён`, 'success');
+
+    if (scope === 'command') {
+      if (taskId === 'morningBriefing') await markBriefingDone(todayKey());
+      if (taskId === 'eveningDebrief') await markDebriefDone(todayKey());
+    }
+
+    return { ok: true, insight };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : 'Ошибка DIRECTOR';
+    await emitKernel('director', `DIRECTOR: ${taskId} — ${error}`, 'error');
+    return { ok: false, error };
   }
-
-  return { ok: true, insight };
 }
 
 export async function applyAiActions(actions: AiAction[]): Promise<void> {

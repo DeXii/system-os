@@ -74,3 +74,5 @@ npm run dev
 | 401 от Groq proxy | `PROXY_TOKEN` на worker и `VITE_PROXY_TOKEN` должны совпадать |
 | Assets 404 на Pages | `VITE_BASE_PATH` должен совпадать с URL (`/REPO/` со слэшами) |
 | CORS / DIRECTOR offline | Worker задеплоен, `VITE_GROQ_PROXY_URL` верный |
+| «Сгенерировать план» / DIRECTOR зависает на «Запрос к Groq...» | Обновите страницу после деплоя (Ctrl+Shift+R) — нужна миграция IndexedDB v10. В консоли не должно быть `KeyPath ... is not indexed` |
+| Таймаут Groq 90 с | Повторите запрос; при стабильных таймаутах проверьте worker и модель в ARCHIVE |

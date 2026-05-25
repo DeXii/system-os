@@ -86,7 +86,9 @@ export function getSynergySummary(readiness: ReadinessScores): {
 }
 
 export async function getLastWeeklyAudit(): Promise<AiInsight | undefined> {
-  const all = await db.aiInsights.where('taskId').equals('weeklyAudit').toArray();
+  const all = (await db.aiInsights.orderBy('createdAt').reverse().toArray()).filter(
+    (i) => i.taskId === 'weeklyAudit'
+  );
   return (
     all
       .filter((i) => i.scope === 'integration')

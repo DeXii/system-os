@@ -77,14 +77,22 @@ export async function runCommandDirectorTask(
   onDone: () => void
 ): Promise<void> {
   setLoading(true);
-  setOutput('Запрос к Groq...');
-  const res = await runDirectorTask(taskId, { scope: 'command' });
-  setLoading(false);
-  if (!res.ok) {
-    setOutput(res.error);
-    return;
+  setOutput('Сбор контекста...');
+  try {
+    const res = await runDirectorTask(taskId, {
+      scope: 'command',
+      onProgress: setOutput,
+    });
+    if (!res.ok) {
+      setOutput(res.error);
+      return;
+    }
+    setInsight(res.insight);
+    setOutput(res.insight.text);
+    onDone();
+  } catch (e) {
+    setOutput(e instanceof Error ? e.message : 'Ошибка DIRECTOR');
+  } finally {
+    setLoading(false);
   }
-  setInsight(res.insight);
-  setOutput(res.insight.text);
-  onDone();
 }

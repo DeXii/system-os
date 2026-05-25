@@ -323,7 +323,7 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
     effectiveScope === 'archive' ||
     effectiveScope === 'command'
   ) {
-    return JSON.stringify(fullContext, null, 2);
+    return JSON.stringify(fullContext);
   }
 
   const scoped: Record<string, unknown> = {
@@ -374,5 +374,5 @@ export async function buildDirectorContext(scope?: string): Promise<string> {
       break;
   }
 
-  return JSON.stringify(scoped, null, 2);
+  return JSON.stringify(scoped);
 }

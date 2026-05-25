@@ -1,6 +1,6 @@
 import { BAR_EXERCISES } from '@/content/exercises-bars';
 import { TASK_KEYS } from '@/content/task-keys';
-import { db, todayKey, uid, weekdayIndex } from '../db';
+import { db, dateKeyDaysAgo, todayKey, uid, weekdayIndex } from '../db';
 import { computeReadiness } from './readiness';
 import type {
   OperatorCalibration,
@@ -48,12 +48,11 @@ async function hadHeavyPullYesterday(): Promise<boolean> {
 }
 
 async function failedLastTwoSessions(exerciseId: string): Promise<boolean> {
-  const logs = await db.setLogs
-    .where('exerciseId')
-    .equals(exerciseId)
-    .reverse()
-    .limit(12)
-    .toArray();
+  const since = dateKeyDaysAgo(30);
+  const logs = (await db.setLogs.where('date').aboveOrEqual(since).toArray())
+    .filter((l) => l.exerciseId === exerciseId)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 12);
   const byDate = new Map<string, typeof logs>();
   for (const l of logs) {
     const arr = byDate.get(l.date) ?? [];

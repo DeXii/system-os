@@ -57,22 +57,31 @@ export function useDirectorRunner({
         return { ok: false as const, error: 'offline' };
       }
       setLoading(true);
-      setOutput('Запрос к Groq...');
+      setOutput('Сбор контекста...');
       const taskScope = resolveScope(taskId, scope);
-      const res = await runDirectorTask(taskId, {
-        scope: taskScope,
-        userMessage,
-      });
-      setLoading(false);
-      if (!res.ok) {
-        setOutput(res.error);
-        setInsight(null);
+      try {
+        const res = await runDirectorTask(taskId, {
+          scope: taskScope,
+          userMessage,
+          onProgress: setOutput,
+        });
+        if (!res.ok) {
+          setOutput(res.error);
+          setInsight(null);
+          return res;
+        }
+        setInsight(res.insight);
+        setOutput(res.insight.text);
+        void refreshHistory();
         return res;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Ошибка DIRECTOR';
+        setOutput(msg);
+        setInsight(null);
+        return { ok: false as const, error: msg };
+      } finally {
+        setLoading(false);
       }
-      setInsight(res.insight);
-      setOutput(res.insight.text);
-      void refreshHistory();
-      return res;
     },
     [status, scope, refreshHistory]
   );
