@@ -27,6 +27,53 @@ export type ScheduleSlotStatus = 'pending' | 'done' | 'skipped';
 export type ExercisePattern = 'pull' | 'push' | 'core' | 'legs';
 export type BarEquipment = 'bar' | 'dip' | 'none';
 
+export type WorkoutKind =
+  | 'hift'
+  | 'gpp_push'
+  | 'gpp_pull'
+  | 'gpp_core'
+  | 'gpp_legs'
+  | 'warmup'
+  | 'stretch'
+  | 'cardio_intense'
+  | 'cardio_easy'
+  | 'legacy';
+
+export type WorkoutStructure = 'circuit' | 'straight_sets' | 'cardio';
+
+export type FitnessTier = 'beginner' | 'novice' | 'medium' | 'pro' | 'ayanakoji';
+
+export type FitnessCategory = 'hift' | 'gpp' | 'warmup' | 'stretch';
+
+export type ExerciseMeasure = 'reps' | 'seconds';
+
+export type GppSubtype = 'push' | 'pull' | 'core' | 'legs';
+
+export const FITNESS_TIER_ORDER: FitnessTier[] = [
+  'beginner',
+  'novice',
+  'medium',
+  'pro',
+  'ayanakoji',
+];
+
+export const GPP_ROTATION: GppSubtype[] = ['push', 'pull', 'core', 'legs'];
+
+export function gppKindFromSubtype(sub: GppSubtype): WorkoutKind {
+  return `gpp_${sub}` as WorkoutKind;
+}
+
+export function fitnessTierLabel(tier: FitnessTier): string {
+  const labels: Record<FitnessTier, string> = {
+    beginner: 'Начинающий',
+    novice: 'Новичок',
+    medium: 'Средний',
+    pro: 'Проф',
+    ayanakoji: 'Ayanakoji',
+  };
+  return labels[tier];
+}
+
 export const STAGE_ORDER: StageId[] = ['foundation', 'regulation', 'mind', 'influence'];
 
 export function nextStage(stage: StageId): StageId | null {
@@ -94,6 +141,34 @@ export interface TrainingSession {
   durationMin: number;
   intensity: 'low' | 'medium' | 'high';
   notes?: string;
+  workoutKind?: WorkoutKind;
+}
+
+export interface CardioSession {
+  id: string;
+  date: string;
+  kind: 'cardio_intense' | 'cardio_easy';
+  durationMin: number;
+  distanceKm?: number;
+  avgHr?: number;
+  maxHr?: number;
+  notes?: string;
+}
+
+export interface OperatorFitnessLevels {
+  id: 'fitness-levels';
+  hift: FitnessTier;
+  gpp: FitnessTier;
+  warmup: FitnessTier;
+  stretch: FitnessTier;
+  manualOverride?: Partial<Record<FitnessCategory, FitnessTier>>;
+  lastUpdated: string;
+}
+
+export interface WorkoutTypeStat {
+  kind: WorkoutKind;
+  totalCount: number;
+  lastDate: string | null;
 }
 
 export type HrvSource = 'manual' | 'oura' | 'whoop' | 'garmin' | 'other';
@@ -325,11 +400,22 @@ export interface BarExercise {
   progressionRule: string;
 }
 
+export interface CatalogExercise extends BarExercise {
+  workoutKinds: WorkoutKind[];
+  tiers: FitnessTier[];
+  measure: ExerciseMeasure;
+  isStatic?: boolean;
+  defaultTargetReps?: number;
+  defaultTargetSec?: number;
+}
+
 export interface PlannedExercise {
   exerciseId: string;
   sets: number;
   targetReps: number;
   restSec: number;
+  measure?: ExerciseMeasure;
+  targetSeconds?: number;
 }
 
 export interface WorkoutPlan {
@@ -338,6 +424,12 @@ export interface WorkoutPlan {
   exercises: PlannedExercise[];
   status: 'planned' | 'in_progress' | 'completed';
   notes?: string;
+  kind?: WorkoutKind;
+  structure?: WorkoutStructure;
+  rounds?: number;
+  roundRestSec?: number;
+  circuitExerciseIds?: string[];
+  gppSubtype?: GppSubtype;
 }
 
 export interface SetLog {
@@ -350,6 +442,11 @@ export interface SetLog {
   actualReps: number;
   restSec: number;
   rpe?: number;
+  workoutKind?: WorkoutKind;
+  measure?: ExerciseMeasure;
+  targetSeconds?: number;
+  actualSeconds?: number;
+  roundIndex?: number;
 }
 
 export interface DayReport {
@@ -455,7 +552,8 @@ export interface AiAction {
     | 'move_slot'
     | 'complete_slot'
     | 'add_schedule_slot'
-    | 'set_workout_plan';
+    | 'set_workout_plan'
+    | 'set_cardio_session_plan';
   payload: Record<string, unknown>;
 }
 

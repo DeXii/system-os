@@ -1,6 +1,6 @@
 import { db } from '../db';
 
-export const EXPORT_VERSION = 7;
+export const EXPORT_VERSION = 8;
 
 export const EXPORT_TABLE_KEYS = [
   'operator',
@@ -32,6 +32,9 @@ export const EXPORT_TABLE_KEYS = [
   'workoutPlans',
   'setLogs',
   'operatorCalibration',
+  'operatorFitnessLevels',
+  'workoutTypeStats',
+  'cardioSessions',
 ] as const;
 
 type ExportTableKey = (typeof EXPORT_TABLE_KEYS)[number];
@@ -66,6 +69,9 @@ const TABLE_MAP: Record<ExportTableKey, keyof typeof db> = {
   workoutPlans: 'workoutPlans',
   setLogs: 'setLogs',
   operatorCalibration: 'operatorCalibration',
+  operatorFitnessLevels: 'operatorFitnessLevels',
+  workoutTypeStats: 'workoutTypeStats',
+  cardioSessions: 'cardioSessions',
 };
 
 function getTable(key: ExportTableKey) {

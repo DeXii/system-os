@@ -6,10 +6,7 @@ interface Props {
 }
 
 const TASKS = getTasksForScope('foundation').filter(
-  (t) =>
-    t.id === 'foundationCoach' ||
-    t.id === 'planWorkout' ||
-    t.id === 'freeCommand'
+  (t) => t.id === 'foundationCoach' || t.id === 'freeCommand'
 );
 
 export function FoundationDirectorPanel({ onApplied }: Props) {

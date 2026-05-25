@@ -1,13 +1,28 @@
+import {
+  getCatalogExerciseById,
+  getExercisesForKind,
+  gppExercisesForSubtype,
+} from '@/content/exercises';
 import { BAR_EXERCISES } from '@/content/exercises-bars';
 import { TASK_KEYS } from '@/content/task-keys';
 import { db, dateKeyDaysAgo, todayKey, uid, weekdayIndex } from '../db';
 import { computeReadiness } from './readiness';
+import {
+  clampSets,
+  getFitnessLevels,
+  suggestTargetForExercise,
+  tierForWorkoutKind,
+} from './progression-engine';
 import type {
+  CatalogExercise,
+  GppSubtype,
   OperatorCalibration,
   PlannedExercise,
   ReadinessScores,
+  WorkoutKind,
   WorkoutPlan,
 } from '../domain/types';
+import { gppKindFromSubtype } from '../domain/types';
 
 function clampReps(n: number, min = 3, max = 12): number {
   return Math.max(min, Math.min(max, Math.round(n)));
@@ -164,6 +179,145 @@ export async function getTodayWorkoutPlan(date = todayKey()): Promise<WorkoutPla
   return plans.sort((a, b) => b.id.localeCompare(a.id))[0];
 }
 
+export async function getWorkoutPlanByKind(
+  kind: WorkoutKind,
+  date = todayKey()
+): Promise<WorkoutPlan | undefined> {
+  const plans = await db.workoutPlans
+    .where('date')
+    .equals(date)
+    .filter((p) => p.kind === kind && p.status !== 'completed')
+    .toArray();
+  return plans.sort((a, b) => b.id.localeCompare(a.id))[0];
+}
+
+function shufflePick<T>(arr: T[], count: number): T[] {
+  const copy = [...arr];
+  const out: T[] = [];
+  while (out.length < count && copy.length) {
+    const i = Math.floor(Math.random() * copy.length);
+    out.push(copy.splice(i, 1)[0]);
+  }
+  return out;
+}
+
+async function plannedFromCatalog(
+  ex: CatalogExercise,
+  sets: number,
+  restOverride?: number
+): Promise<PlannedExercise> {
+  const measure = ex.measure;
+  const targets = await suggestTargetForExercise(
+    ex.id,
+    measure,
+    ex.defaultTargetReps ?? 8,
+    ex.defaultTargetSec ?? 30
+  );
+  return {
+    exerciseId: ex.id,
+    sets: clampSets(sets),
+    targetReps: targets.targetReps,
+    targetSeconds: targets.targetSeconds,
+    measure,
+    restSec: restOverride ?? ex.defaultRestSec,
+  };
+}
+
+export async function buildHiftPlanLocal(date = todayKey()): Promise<WorkoutPlan> {
+  const levels = await getFitnessLevels();
+  const tier = tierForWorkoutKind(levels, 'hift');
+  const pool = getExercisesForKind('hift', tier).filter((e) => e.measure === 'reps');
+  const count = 5 + (Math.random() > 0.5 ? 1 : 0);
+  const picked = shufflePick(pool, count);
+  const exercises = await Promise.all(picked.map((e) => plannedFromCatalog(e, 1, 0)));
+
+  const plan: WorkoutPlan = {
+    id: uid(),
+    date,
+    kind: 'hift',
+    structure: 'circuit',
+    rounds: 3,
+    roundRestSec: 120,
+    circuitExerciseIds: picked.map((e) => e.id),
+    exercises,
+    status: 'planned',
+    notes: 'Локальный HIFT (без ИИ)',
+  };
+  await db.workoutPlans.put(plan);
+  return plan;
+}
+
+export async function buildGppPlanLocal(
+  subtype: GppSubtype,
+  date = todayKey()
+): Promise<WorkoutPlan> {
+  const kind = gppKindFromSubtype(subtype);
+  const levels = await getFitnessLevels();
+  const tier = tierForWorkoutKind(levels, kind);
+  const pool = gppExercisesForSubtype(subtype, tier);
+  const staticPool = pool.filter((e) => e.isStatic || e.measure === 'seconds');
+  const dynamicPool = pool.filter((e) => !e.isStatic && e.measure === 'reps');
+  const total = 6 + Math.floor(Math.random() * 3);
+  const staticCount = Math.min(3, Math.max(2, Math.floor(total * 0.3)));
+  const dynamicCount = total - staticCount;
+  const picked = [
+    ...shufflePick(dynamicPool, dynamicCount),
+    ...shufflePick(staticPool, staticCount),
+  ];
+  const exercises = await Promise.all(picked.map((e) => plannedFromCatalog(e, 3)));
+
+  const plan: WorkoutPlan = {
+    id: uid(),
+    date,
+    kind,
+    structure: 'straight_sets',
+    gppSubtype: subtype,
+    exercises,
+    status: 'planned',
+    notes: `Локальный GPP ${subtype}`,
+  };
+  await db.workoutPlans.put(plan);
+  return plan;
+}
+
+export async function buildWarmupPlanLocal(date = todayKey()): Promise<WorkoutPlan> {
+  const levels = await getFitnessLevels();
+  const tier = tierForWorkoutKind(levels, 'warmup');
+  const picked = shufflePick(getExercisesForKind('warmup', tier), 8);
+  const exercises = await Promise.all(picked.map((e) => plannedFromCatalog(e, 1, e.defaultRestSec)));
+
+  const plan: WorkoutPlan = {
+    id: uid(),
+    date,
+    kind: 'warmup',
+    structure: 'straight_sets',
+    exercises,
+    status: 'planned',
+    notes: 'Локальная зарядка',
+  };
+  await db.workoutPlans.put(plan);
+  return plan;
+}
+
+export async function buildStretchPlanLocal(date = todayKey()): Promise<WorkoutPlan> {
+  const levels = await getFitnessLevels();
+  const tier = tierForWorkoutKind(levels, 'stretch');
+  const picked = shufflePick(getExercisesForKind('stretch', tier), 8);
+  const exercises = await Promise.all(picked.map((e) => plannedFromCatalog(e, 1, 10)));
+
+  const plan: WorkoutPlan = {
+    id: uid(),
+    date,
+    kind: 'stretch',
+    structure: 'straight_sets',
+    exercises,
+    status: 'planned',
+    notes: 'Локальная растяжка',
+  };
+  await db.workoutPlans.put(plan);
+  return plan;
+}
+
 export async function ensureTodayWorkoutPlan(): Promise<WorkoutPlan> {
   const existing = await getTodayWorkoutPlan();
   if (existing && existing.status !== 'completed') return existing;
@@ -174,35 +328,87 @@ export function workoutTaskKey(): string {
   return TASK_KEYS.foundationWorkout;
 }
 
+export interface DirectorPlanPayload {
+  exercises: unknown[];
+  kind?: WorkoutKind;
+  structure?: WorkoutPlan['structure'];
+  rounds?: number;
+  roundRestSec?: number;
+  circuitExerciseIds?: string[];
+  gppSubtype?: GppSubtype;
+  notes?: string;
+}
+
 export async function applyWorkoutPlanFromDirector(
   rawExercises: unknown[],
-  date = todayKey()
+  date = todayKey(),
+  meta: Omit<DirectorPlanPayload, 'exercises'> = {}
 ): Promise<WorkoutPlan> {
-  const allowed = new Set(BAR_EXERCISES.map((e) => e.id));
+  const kind = meta.kind ?? 'legacy';
+  const levels = await getFitnessLevels();
+  const tier = tierForWorkoutKind(levels, kind);
+  const allowed = new Set(
+    kind === 'legacy'
+      ? BAR_EXERCISES.map((e) => e.id)
+      : getExercisesForKind(kind, tier).map((e) => e.id)
+  );
+
   const exercises: PlannedExercise[] = [];
   for (const raw of rawExercises) {
     if (!raw || typeof raw !== 'object') continue;
     const ex = raw as Record<string, unknown>;
     const exerciseId = String(ex.exerciseId ?? '');
     if (!allowed.has(exerciseId)) continue;
+    const catalog = getCatalogExerciseById(exerciseId);
+    const measure =
+      (ex.measure as PlannedExercise['measure']) ??
+      catalog?.measure ??
+      ('reps' as const);
+    const targetSeconds =
+      ex.targetSeconds != null ? Number(ex.targetSeconds) : catalog?.defaultTargetSec;
+    const targetReps =
+      ex.targetReps != null
+        ? Number(ex.targetReps)
+        : measure === 'seconds'
+          ? targetSeconds ?? 30
+          : Number(ex.targetReps) || catalog?.defaultTargetReps || 8;
+
     exercises.push({
       exerciseId,
-      sets: Math.max(1, Number(ex.sets) || 3),
-      targetReps: Math.max(1, Number(ex.targetReps) || 8),
-      restSec: Math.max(30, Number(ex.restSec) || 60),
+      sets: clampSets(Number(ex.sets) || 3),
+      targetReps: Math.max(1, targetReps),
+      targetSeconds: targetSeconds ?? (measure === 'seconds' ? targetReps : undefined),
+      measure,
+      restSec: Math.max(0, Number(ex.restSec) ?? catalog?.defaultRestSec ?? 60),
     });
   }
+
   if (exercises.length === 0) {
+    if (kind === 'hift') return buildHiftPlanLocal(date);
+    if (kind.startsWith('gpp_') && meta.gppSubtype) return buildGppPlanLocal(meta.gppSubtype, date);
+    if (kind === 'warmup') return buildWarmupPlanLocal(date);
+    if (kind === 'stretch') return buildStretchPlanLocal(date);
     return buildWorkoutPlan(date);
   }
-  const existing = await getTodayWorkoutPlan(date);
+
+  const existing = await getWorkoutPlanByKind(kind, date);
   const plan: WorkoutPlan = {
     id: existing?.id ?? uid(),
     date,
     exercises,
     status: 'planned',
-    notes: 'План от DIRECTOR',
+    kind,
+    structure: meta.structure ?? (kind === 'hift' ? 'circuit' : 'straight_sets'),
+    rounds: meta.rounds ?? (kind === 'hift' ? 3 : undefined),
+    roundRestSec: meta.roundRestSec ?? (kind === 'hift' ? 120 : undefined),
+    circuitExerciseIds: meta.circuitExerciseIds,
+    gppSubtype: meta.gppSubtype,
+    notes: meta.notes ?? 'План от DIRECTOR',
   };
   await db.workoutPlans.put(plan);
   return plan;
+}
+
+export async function saveWorkoutPlan(plan: WorkoutPlan): Promise<void> {
+  await db.workoutPlans.put(plan);
 }

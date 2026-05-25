@@ -14,6 +14,7 @@ export function parseAiActions(text: string): AiAction[] {
       'complete_slot',
       'add_schedule_slot',
       'set_workout_plan',
+      'set_cardio_session_plan',
     ]);
     return parsed
       .filter(

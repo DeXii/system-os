@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
+import { getCatalogExerciseById } from '@/content/exercises';
 import { getExerciseById } from '@/content/exercises-bars';
 import { TASK_KEYS } from '@/content/task-keys';
 import { db, dateKeyDaysAgo, todayKey, uid } from '@/core/db';
 import { getCalibration } from '@/core/engines/workout-planner';
 import { findSlotByTaskKey } from '@/core/engines/week-schedule';
-import {
-  buildWorkoutPlan,
-  ensureTodayWorkoutPlan,
-  getTodayWorkoutPlan,
-} from '@/core/engines/workout-planner';
 import { emitKernel } from '@/core/events/event-bus';
 import { getDegradedMessage } from '@/core/engines/stage-gates';
-import type { ModuleStatus, SetLog, WorkoutPlan } from '@/core/domain/types';
+import type { CardioSession, ModuleStatus, SetLog, WorkoutPlan } from '@/core/domain/types';
 import { BftPanel } from './components/BftPanel';
 import { CalibrationPanel } from './components/CalibrationPanel';
+import { CardioLiveMode } from './components/CardioLiveMode';
+import { FitnessLevelPanel } from './components/FitnessLevelPanel';
+import { HiftLiveMode } from './components/HiftLiveMode';
+import { StraightSetsLiveMode } from './components/StraightSetsLiveMode';
 import { FoundationDirectorPanel } from './components/FoundationDirectorPanel';
-import { WorkoutLiveMode } from './components/WorkoutLiveMode';
+import { WorkoutHubPanel } from './components/WorkoutHubPanel';
 import { StageBooksWidget } from '@/modules/library/components/StageBooksWidget';
 import { GlossaryZone } from '@/ui/glossary';
 
@@ -26,18 +26,14 @@ interface Props {
 }
 
 export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary }: Props) {
-  const [plan, setPlan] = useState<WorkoutPlan | null>(null);
-  const [live, setLive] = useState(false);
+  const [livePlan, setLivePlan] = useState<WorkoutPlan | null>(null);
+  const [cardioSession, setCardioSession] = useState<CardioSession | null>(null);
   const [setLogs, setSetLogs] = useState<SetLog[]>([]);
   const [queueHint, setQueueHint] = useState<string | null>(null);
   const [recovery, setRecovery] = useState({ sleep: '7', nutrition: true, hydration: true });
-  const [generating, setGenerating] = useState(false);
-  const [planMessage, setPlanMessage] = useState<string | null>(null);
   const [hasCalibration, setHasCalibration] = useState(true);
 
   const load = useCallback(async () => {
-    const p = await getTodayWorkoutPlan();
-    setPlan(p ?? null);
     const since7 = dateKeyDaysAgo(6);
     const logs = await db.setLogs.where('date').aboveOrEqual(since7).toArray();
     setSetLogs(logs.sort((a, b) => b.date.localeCompare(a.date)));
@@ -50,32 +46,6 @@ export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
   useEffect(() => {
     load();
   }, [load]);
-
-  const generatePlan = async () => {
-    setGenerating(true);
-    setPlanMessage(null);
-    try {
-      if (!hasCalibration) {
-        setPlanMessage('Рекомендуется сначала пройти калибровку — план будет с базовыми значениями.');
-      }
-      const p = await buildWorkoutPlan();
-      setPlan(p);
-      setPlanMessage(`План обновлён: ${p.exercises.length} упражнений.${p.notes ? ` (${p.notes})` : ''}`);
-      await emitKernel('foundation', 'План тренировки сгенерирован', 'info');
-      onRefresh();
-    } catch (e) {
-      setPlanMessage(e instanceof Error ? e.message : 'Ошибка генерации плана');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const startLive = async () => {
-    const p = plan ?? (await ensureTodayWorkoutPlan());
-    await db.workoutPlans.update(p.id, { status: 'in_progress' });
-    setPlan(p);
-    setLive(true);
-  };
 
   const saveRecovery = async () => {
     const today = todayKey();
@@ -93,13 +63,29 @@ export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
 
   const degraded = moduleStatus === 'degraded' ? getDegradedMessage('foundation') : null;
 
-  if (live && plan) {
+  if (cardioSession) {
     return (
-      <WorkoutLiveMode
-        plan={plan}
-        onExit={() => setLive(false)}
+      <CardioLiveMode
+        session={cardioSession}
+        onExit={() => setCardioSession(null)}
         onComplete={() => {
-          setLive(false);
+          setCardioSession(null);
+          load();
+          onRefresh();
+        }}
+      />
+    );
+  }
+
+  if (livePlan) {
+    const Live =
+      livePlan.structure === 'circuit' || livePlan.kind === 'hift' ? HiftLiveMode : StraightSetsLiveMode;
+    return (
+      <Live
+        plan={livePlan}
+        onExit={() => setLivePlan(null)}
+        onComplete={() => {
+          setLivePlan(null);
           load();
           onRefresh();
         }}
@@ -112,7 +98,7 @@ export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
       <h1 style={{ fontFamily: 'var(--mono)', marginBottom: '1rem' }}>FOUNDATION — Этап 1</h1>
       <GlossaryZone>
         <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
-          Foundation: GPP и HIFT, BFT, today workout с set log, calibration оператора и recovery ops.
+          Foundation: HIFT утром, GPP вечером, зарядка, растяжка, кардио. Уровни и прогрессия по логам 7 дней.
         </p>
       </GlossaryZone>
       {degraded && <div className="alert-banner">{degraded}</div>}
@@ -124,6 +110,8 @@ export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
 
       <StageBooksWidget level={1} onOpenLibrary={onOpenLibrary} />
 
+      <FitnessLevelPanel />
+
       <CalibrationPanel
         onSaved={() => {
           setHasCalibration(true);
@@ -132,75 +120,20 @@ export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
       />
       <BftPanel onSaved={onRefresh} />
 
-      <div className="panel">
-        <div className="panel-title">Today Workout</div>
-        <GlossaryZone>
-          {!hasCalibration ? (
-            <p style={{ fontSize: 12, color: 'var(--warn)', marginBottom: 8 }}>
-              Operator calibration не задана — workout plan будет приблизительным.
-            </p>
-          ) : (
-            <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8 }}>
-              Today workout — план на день; set log фиксирует подходы после LIVE.
-            </p>
-          )}
-        </GlossaryZone>
-        {planMessage && (
-          <p
-            style={{
-              fontSize: 12,
-              marginBottom: 8,
-              color: planMessage.startsWith('Ошибка') ? 'var(--danger)' : 'var(--accent)',
-            }}
-          >
-            {planMessage}
-          </p>
-        )}
-        {!plan && (
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={generatePlan}
-            disabled={generating}
-          >
-            {generating ? 'Генерация...' : 'Сгенерировать план'}
-          </button>
-        )}
-        {plan && (
-          <>
-            {plan.notes && (
-              <p style={{ fontSize: 12, color: 'var(--warn)' }}>{plan.notes}</p>
-            )}
-            <ul className="mission-list">
-              {plan.exercises.map((ex, i) => {
-                const meta = getExerciseById(ex.exerciseId);
-                return (
-                  <li key={i} className="mission-item">
-                    <div>
-                      <div className="mission-title">{meta?.name ?? ex.exerciseId}</div>
-                      <span className="tag">
-                        {ex.sets}×{ex.targetReps} · отдых {ex.restSec}с
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-            <button type="button" className="btn btn-primary" onClick={startLive}>
-              Начать LIVE
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm"
-              style={{ marginLeft: 8 }}
-              onClick={generatePlan}
-              disabled={generating}
-            >
-              {generating ? '...' : 'Пересчитать план'}
-            </button>
-          </>
-        )}
-      </div>
+      <WorkoutHubPanel
+        onPlanAccepted={(p) => setLivePlan(p)}
+        onCardioReady={(s) => setCardioSession(s)}
+        onRefresh={() => {
+          load();
+          onRefresh();
+        }}
+      />
+
+      {!hasCalibration && (
+        <p style={{ fontSize: 12, color: 'var(--warn)', margin: '0 0 0.75rem' }}>
+          Рекомендуется калибровка — планы DIRECTOR точнее с вашими максимумами.
+        </p>
+      )}
 
       <div className="panel">
         <div className="panel-title">Recovery Ops</div>
@@ -238,25 +171,34 @@ export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
         </button>
       </div>
 
-      <div className="panel">
-        <div className="panel-title">История подходов (7 дней)</div>
-        {setLogs.length === 0 && (
-          <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Нет логов — начните LIVE.</p>
-        )}
-        {setLogs.slice(0, 20).map((l) => (
-          <div key={l.id} className="kernel-line">
-            {l.date} · {getExerciseById(l.exerciseId)?.name ?? l.exerciseId} · {l.actualReps}/
-            {l.targetReps}
-          </div>
-        ))}
-      </div>
-
       <FoundationDirectorPanel
         onApplied={() => {
           load();
           onRefresh();
         }}
       />
+
+      <div className="panel">
+        <div className="panel-title">История подходов (7 дней)</div>
+        {setLogs.length === 0 && (
+          <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Нет логов — начните LIVE.</p>
+        )}
+        {setLogs.slice(0, 24).map((l) => {
+          const meta =
+            getCatalogExerciseById(l.exerciseId) ?? getExerciseById(l.exerciseId);
+          const kind = l.workoutKind ? ` · ${l.workoutKind}` : '';
+          const result =
+            l.measure === 'seconds'
+              ? `${l.actualSeconds ?? l.actualReps}/${l.targetSeconds ?? l.targetReps}с`
+              : `${l.actualReps}/${l.targetReps}`;
+          return (
+            <div key={l.id} className="kernel-line">
+              {l.date}
+              {kind} · {meta?.name ?? l.exerciseId} · {result}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

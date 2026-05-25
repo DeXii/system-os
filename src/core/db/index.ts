@@ -29,6 +29,10 @@ import type {
   WorkoutPlan,
   SetLog,
   OperatorCalibration,
+  OperatorFitnessLevels,
+  WorkoutTypeStat,
+  CardioSession,
+  WorkoutKind,
 } from '../domain/types';
 import type { GlossaryCacheEntry } from '../glossary/types';
 
@@ -62,6 +66,9 @@ export class AyanakojiDB extends Dexie {
   workoutPlans!: Table<WorkoutPlan, string>;
   setLogs!: Table<SetLog, string>;
   operatorCalibration!: Table<OperatorCalibration, string>;
+  operatorFitnessLevels!: Table<OperatorFitnessLevels, string>;
+  workoutTypeStats!: Table<WorkoutTypeStat, WorkoutKind>;
+  cardioSessions!: Table<CardioSession, string>;
   glossaryCache!: Table<GlossaryCacheEntry, string>;
 
   constructor() {
@@ -242,6 +249,58 @@ export class AyanakojiDB extends Dexie {
       setLogs: 'id, date, workoutPlanId, exerciseId',
       aiInsights: 'id, createdAt, taskId, scope',
     });
+    this.version(11)
+      .stores({
+        operatorFitnessLevels: 'id',
+        workoutTypeStats: 'kind',
+        cardioSessions: 'id, date, kind',
+        workoutPlans: 'id, date, status, kind',
+        setLogs: 'id, date, workoutPlanId, exerciseId, workoutKind',
+      })
+      .upgrade(async (tx) => {
+        const existing = await tx.table('operatorFitnessLevels').get('fitness-levels');
+        if (!existing) {
+          const now = new Date().toISOString();
+          await tx.table('operatorFitnessLevels').put({
+            id: 'fitness-levels',
+            hift: 'medium',
+            gpp: 'medium',
+            warmup: 'medium',
+            stretch: 'medium',
+            lastUpdated: now,
+          });
+        }
+        const kinds = [
+          'hift',
+          'gpp_push',
+          'gpp_pull',
+          'gpp_core',
+          'gpp_legs',
+          'warmup',
+          'stretch',
+          'cardio_intense',
+          'cardio_easy',
+        ] as const;
+        for (const kind of kinds) {
+          const stat = await tx.table('workoutTypeStats').get(kind);
+          if (!stat) {
+            await tx.table('workoutTypeStats').put({
+              kind,
+              totalCount: 0,
+              lastDate: null,
+            });
+          }
+        }
+        const plans = await tx.table('workoutPlans').toArray();
+        for (const p of plans) {
+          if (!p.kind) {
+            await tx.table('workoutPlans').update(p.id, {
+              kind: 'legacy',
+              structure: 'straight_sets',
+            });
+          }
+        }
+      });
   }
 }
 

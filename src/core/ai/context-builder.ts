@@ -1,5 +1,8 @@
+import { getAllowedIdsForKind, getExercisesForKind } from '@/content/exercises';
 import { BAR_EXERCISES } from '@/content/exercises-bars';
 import { db, dateKeyDaysAgo, todayKey } from '../db';
+import { getFitnessLevels, tierForWorkoutKind } from '../engines/progression-engine';
+import { getRecommendedGppSubtype, getWorkoutTypeStat } from '../engines/workout-stats';
 import { getTodayCompliance } from '../engines/command-compliance';
 import { computeReadiness, getRuleHints } from '../engines/readiness';
 import { getModuleStatuses } from '../engines/stage-gates';
@@ -28,7 +31,7 @@ import {
   getSynergySummary,
 } from '../engines/integration-metrics';
 import { getReadingProgressByLevel } from '../engines/library-books';
-import type { SetLog } from '../domain/types';
+import type { GppSubtype, SetLog, WorkoutKind } from '../domain/types';
 
 export type ContextLookbackDays = 7 | 14 | 30;
 
@@ -170,9 +173,15 @@ function selectContextPayload(
   return scoped;
 }
 
+export interface WorkoutContextOptions {
+  kind: WorkoutKind;
+  gppSubtype?: GppSubtype;
+}
+
 export async function buildDirectorContext(
   scope?: string,
-  lookbackDays: ContextLookbackDays = 7
+  lookbackDays: ContextLookbackDays = 7,
+  workoutContext?: WorkoutContextOptions
 ): Promise<string> {
   const today = todayKey();
   const yesterday = dateKeyDaysAgo(1);
@@ -333,7 +342,55 @@ export async function buildDirectorContext(
     rule: 'Воскресенье — приоритет integration.weekly_audit; bottleneck определяет фокус недели.',
   };
 
+  const fitnessLevels = await getFitnessLevels();
+  const gppRotationNext = await getRecommendedGppSubtype();
+  const workoutStats: Record<string, { totalCount: number; lastDate: string | null }> = {};
+  const kinds: WorkoutKind[] = [
+    'hift',
+    'gpp_push',
+    'gpp_pull',
+    'gpp_core',
+    'gpp_legs',
+    'warmup',
+    'stretch',
+    'cardio_intense',
+    'cardio_easy',
+  ];
+  for (const k of kinds) {
+    const s = await getWorkoutTypeStat(k);
+    workoutStats[k] = { totalCount: s.totalCount, lastDate: s.lastDate };
+  }
+
+  const activeKind = workoutContext?.kind ?? 'legacy';
+  const activeTier = tierForWorkoutKind(fitnessLevels, activeKind);
+  const allowedForActive =
+    activeKind === 'legacy'
+      ? BAR_EXERCISES.map((e) => e.id)
+      : getAllowedIdsForKind(activeKind, activeTier);
+
+  const setLogsByKind: Record<string, typeof recentSetLogs> = {};
+  for (const k of kinds) {
+    setLogsByKind[k] = recentSetLogs.filter((l) => l.workoutKind === k);
+  }
+
+  const cardioSessionsInWindow = filterDated(
+    await db.cardioSessions.where('date').aboveOrEqual(since).toArray(),
+    since
+  );
+
   const foundationBlock = {
+    fitnessLevels: {
+      hift: fitnessLevels.hift,
+      gpp: fitnessLevels.gpp,
+      warmup: fitnessLevels.warmup,
+      stretch: fitnessLevels.stretch,
+      manualOverride: fitnessLevels.manualOverride,
+    },
+    gppRotationNext,
+    workoutTypeStats: workoutStats,
+    activeWorkoutRequest: workoutContext ?? null,
+    setLogsByKind,
+    cardioSessionsInWindow: cardioSessionsInWindow,
     equipmentConstraints: {
       allowed: ['pull-up bar', 'parallel bars', 'bodyweight only'],
       forbidden: [
@@ -367,13 +424,24 @@ export async function buildDirectorContext(
       exerciseCount: p.exercises.length,
       notes: p.notes,
     })),
-    allowedExerciseIds: BAR_EXERCISES.map((e) => e.id),
-    exerciseCatalog: BAR_EXERCISES.map((e) => ({
-      id: e.id,
-      name: e.name,
-      pattern: e.pattern,
-      equipment: e.equipment,
-    })),
+    allowedExerciseIds: allowedForActive,
+    exerciseCatalog:
+      activeKind === 'legacy'
+        ? BAR_EXERCISES.map((e) => ({
+            id: e.id,
+            name: e.name,
+            pattern: e.pattern,
+            equipment: e.equipment,
+          }))
+        : getExercisesForKind(activeKind, activeTier).map((e) => ({
+            id: e.id,
+            name: e.name,
+            pattern: e.pattern,
+            measure: e.measure,
+            isStatic: e.isStatic,
+          })),
+    calibrationRule:
+      'Подбирай нагрузку на грани возможностей: 70–90% выполнения целей. Макс 4 подхода. Анализируй setLogsByKind за 7 дней.',
   };
 
   const fullContext = {

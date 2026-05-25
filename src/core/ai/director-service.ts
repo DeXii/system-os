@@ -3,7 +3,7 @@ import type { AiAction, AiInsight, DirectorConfig, ModuleId } from '../domain/ty
 import { emitKernel } from '../events/event-bus';
 import { markBriefingDone, markDebriefDone } from '../engines/command-compliance';
 import { applyDirectorActions as applyKernelActions } from '../engines/os-kernel';
-import { buildDirectorContext } from './context-builder';
+import { buildDirectorContext, type WorkoutContextOptions } from './context-builder';
 import { parseAiActions, stripActionsBlock } from './action-parser';
 import { DIRECTOR_MASTER_PROMPT, TASK_ADDENDUMS } from './prompts/director-master';
 import {
@@ -87,6 +87,7 @@ export async function runDirectorTask(
     scope?: ModuleId | 'full';
     lookbackDays?: ContextLookbackDays;
     onProgress?: (message: string) => void;
+    workoutContext?: WorkoutContextOptions;
   }
 ): Promise<{ ok: true; insight: AiInsight } | { ok: false; error: string }> {
   const cfg = getDirectorConfig();
@@ -100,7 +101,7 @@ export async function runDirectorTask(
 
   try {
     options?.onProgress?.(`Сбор контекста (${lookbackDays} дн.)...`);
-    const context = await buildDirectorContext(scope, lookbackDays);
+    const context = await buildDirectorContext(scope, lookbackDays, options?.workoutContext);
     const addendum = TASK_ADDENDUMS[taskId] ?? '';
     const system = `${DIRECTOR_MASTER_PROMPT}\n\n---\n${addendum}`;
     const user =

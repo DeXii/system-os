@@ -32,7 +32,8 @@ FOUNDATION — ЖЁСТКОЕ ОГРАНИЧЕНИЕ СНАРЯЖЕНИЯ:
 Типы actions (только эти):
 - add_mission — { title, taskKey?, priority?, stage? }
 - add_protocol — { label, taskKey?, priority?, stage? }
-- set_workout_plan — { exercises: [{ exerciseId, sets, targetReps, restSec }] }
+- set_workout_plan — { kind, structure, rounds?, roundRestSec?, circuitExerciseIds?, gppSubtype?, exercises: [{ exerciseId, sets, targetReps?, targetSeconds?, measure?, restSec }] }
+- set_cardio_session_plan — { kind: cardio_intense|cardio_easy, durationMin, suggestedActivity?, notes? }
 - move_slot — { taskKey, toDate? }
 - complete_slot — { taskKey }
 - add_schedule_slot — { title, taskKey? }
@@ -153,15 +154,42 @@ MI OARS, nudge, Theory of Mind, debrief. НЕ требуй ethics checklist.
 
   buildWeekSchedule: `Задача: предложить оптимальный порядок недели (Пн–Вс). Учитывай 3–4 тренировочных дня на турнике/брусьях, кардио опционально (бег/ходьба).`,
 
-  planWorkout: `Задача: конкретный план тренировки на сегодня.
-ТОЛЬКО exerciseId из foundation.allowedExerciseIds.
-Учти foundation.setLogsSummary (прогрессия/провалы), calibration, readiness, bftHistory.
-Формат markdown: список упражнений с подходами.
-ОБЯЗАТЕЛЬНО добавь:
-## Действия OS
+  planWorkout: `Задача: legacy план тренировки. ТОЛЬКО exerciseId из foundation.allowedExerciseIds.
+## Действия OS с set_workout_plan.`,
+
+  planHift: `Задача: HIFT на грани возможностей оператора (утро).
+Используй foundation.allowedExerciseIds (каталог HIFT), foundation.setLogsByKind.hift, foundation.fitnessLevels.hift, calibration.
+ПРАВИЛА:
+- 5 или 6 упражнений в круге, structure=circuit, rounds=3, roundRestSec=120, restSec=0 внутри круга.
+- Целевые повторы ~85–95% от недавнего факта по логам; если 2 сессии провал — снизить на 10%.
+- Максимум 1 подход на упражнение в круге (sets=1).
+- Нагрузка сложная: оператор должен выполнить ~70–90% целей.
+ОБЯЗАТЕЛЬНО JSON:
 \`\`\`json
-[{"type":"set_workout_plan","payload":{"exercises":[{"exerciseId":"pullup","sets":4,"targetReps":6,"restSec":90}]}}]
+[{"type":"set_workout_plan","payload":{"kind":"hift","structure":"circuit","rounds":3,"roundRestSec":120,"exercises":[{"exerciseId":"hift_pullup","sets":1,"targetReps":6,"restSec":0}]}}]
 \`\`\``,
+
+  planGpp: `Задача: GPP вечер — тип указан в сообщении оператора (push|pull|core|legs).
+Используй foundation.allowedExerciseIds для этого gppSubtype, foundation.setLogsByKind, foundation.fitnessLevels.gpp.
+ПРАВИЛА:
+- 6–10 упражнений, structure=straight_sets, последние 2–3 только measure=seconds (статика).
+- 3 подхода (4 только если последние 3 GPP сессии ≥80% успеха).
+- Отдых 60–120с по сложности между подходами ОДНОГО упражнения.
+- На грани возможностей по логам 7 дней.
+JSON с kind=gpp_push|gpp_pull|gpp_core|gpp_legs и gppSubtype.`,
+
+  planWarmup: `Задача: утренняя зарядка 15–25 мин. kind=warmup, structure=straight_sets.
+6–8 упражнений из allowedExerciseIds, по 1 подходу, лёгкая интенсивность.`,
+
+  planStretch: `Задача: растяжка. kind=stretch, structure=straight_sets.
+6–8 упражнений measure=seconds, по 1 подходу, удержания 30–90с.`,
+
+  planCardioIntense: `Задача: интенсивное кардио (бег/интервалы). kind=cardio_intense.
+Учти foundation.cardioSessionsInWindow. durationMin 20–40.
+JSON: set_cardio_session_plan с durationMin и suggestedActivity.`,
+
+  planCardioEasy: `Задача: спокойное кардио (ходьба). kind=cardio_easy.
+durationMin 30–60. JSON: set_cardio_session_plan.`,
 
   deepAnalysis14d: `Задача: ПОЛНЫЙ системный анализ оператора за 14 календарных дней (contextLookbackDays=14).
 Охвати все 4 этапа: foundation, regulation, mind, influence + integration.synergy, compliance.trendInWindow, stageProgress.

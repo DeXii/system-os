@@ -19,6 +19,8 @@ export function formatActionSummary(action: AiAction): string {
       return `Слот: ${String(p.title ?? '—')}`;
     case 'log_note':
       return `Заметка: ${String(p.text ?? p.note ?? '—').slice(0, 80)}`;
+    case 'set_cardio_session_plan':
+      return `Кардио: ${Number(p.durationMin) || '?'} мин (${String(p.kind ?? '—')})`;
     default:
       return action.type;
   }
@@ -33,6 +35,7 @@ export function formatActionType(type: AiAction['type']): string {
     complete_slot: 'Слот ✓',
     add_schedule_slot: 'Расписание',
     log_note: 'Заметка',
+    set_cardio_session_plan: 'Кардио',
   };
   return labels[type] ?? type;
 }
