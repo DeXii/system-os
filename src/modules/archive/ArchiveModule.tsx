@@ -3,6 +3,8 @@ import { CloudSyncPanel } from './components/CloudSyncPanel';
 import { ExportImportPanel } from './components/ExportImportPanel';
 import { GroqSettingsPanel } from './components/GroqSettingsPanel';
 import { InsightsHistoryPanel } from './components/InsightsHistoryPanel';
+import { DomainEventsPanel } from './components/DomainEventsPanel';
+import { ModuleShell } from '@/ui/shell/ModuleShell';
 
 interface Props {
   onRefresh?: () => void;
@@ -12,17 +14,14 @@ interface Props {
 export function ArchiveModule({ onRefresh, onOpenDirector }: Props) {
   return (
     <div>
-      <h1 style={{ fontFamily: 'var(--mono)', marginBottom: '0.5rem' }}>ARCHIVE</h1>
-      <p style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: '1rem' }}>
-        Системный слой OS: облако Firebase, Groq / DIRECTOR, резервное копирование и архив
-        insights.
-      </p>
+      <ModuleShell title="ARCHIVE" subtitle="SYNC · GROQ · BACKUP" />
 
       <ArchiveOpsSummary />
       <CloudSyncPanel />
       <GroqSettingsPanel onOpenDirector={onOpenDirector} />
       <ExportImportPanel onRefresh={onRefresh} />
       <InsightsHistoryPanel onApplied={onRefresh} />
+      <DomainEventsPanel />
     </div>
   );
 }

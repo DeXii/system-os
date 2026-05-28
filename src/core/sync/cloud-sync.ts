@@ -11,6 +11,7 @@ import {
 } from '../data/export-import';
 import { getCurrentUser } from '../firebase/auth';
 import { getFirestoreDb, isFirebaseConfigured } from '../firebase/config';
+import { getDeviceId, getGlobalRevision } from '../db/write';
 
 export type CloudSyncStatus = 'idle' | 'syncing' | 'synced' | 'error';
 
@@ -211,11 +212,22 @@ export async function pullFromCloud(): Promise<
       return { ok: true, hadData: false, cloudEmpty: true };
     }
 
-    lastRemoteUpdatedAt = typeof data.updatedAt === 'string' ? data.updatedAt : '';
+    const remoteUpdatedAt = typeof data.updatedAt === 'string' ? data.updatedAt : '';
+    lastRemoteUpdatedAt = remoteUpdatedAt;
 
     if (!hasSnapshotData(payload)) {
       setStatus('synced');
       return { ok: true, hadData: false, cloudEmpty: true };
+    }
+
+    const localHas = await localHasOsData();
+    if (localHas && remoteUpdatedAt) {
+      const localMeta = await db.dbMeta.get('db-meta');
+      const localUpdated = localMeta?.lastUpdated ?? '';
+      if (localUpdated && localUpdated >= remoteUpdatedAt) {
+        setStatus('synced');
+        return { ok: true, hadData: true };
+      }
     }
 
     await importAllData(JSON.stringify(payload));
@@ -244,11 +256,14 @@ export async function pushToCloud(): Promise<{ ok: boolean; error?: string }> {
       return { ok: false, error: MSG_LOCAL_EMPTY };
     }
     const updatedAt = new Date().toISOString();
+    const globalRevision = await getGlobalRevision();
     await setDoc(
       metaDocRef(user.uid),
       sanitizeForFirestore({
         version: EXPORT_VERSION,
         updatedAt,
+        deviceId: getDeviceId(),
+        globalRevision,
         payload,
       })
     );

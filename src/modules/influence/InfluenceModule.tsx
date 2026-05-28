@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { computeReadiness } from '@/core/engines/readiness';
+import { getReadiness } from '@/core/engines/readiness';
 import { shouldThrottleInfluence } from '@/core/engines/influence-metrics';
 import { getDegradedMessage } from '@/core/engines/stage-gates';
 import type { ModuleStatus } from '@/core/domain/types';
@@ -12,7 +12,10 @@ import { InfluenceProtocolPanel } from './components/InfluenceProtocolPanel';
 import { MiJournalPanel } from './components/MiJournalPanel';
 import { NudgeJournalPanel } from './components/NudgeJournalPanel';
 import { ObservationDebriefPanel } from './components/ObservationDebriefPanel';
-import { GlossaryZone } from '@/ui/glossary';
+import { ContactsPanel } from './components/ContactsPanel';
+import { OperationsPanel } from './components/OperationsPanel';
+import { PreContactPanel } from './components/PreContactPanel';
+import { ModuleShell } from '@/ui/shell/ModuleShell';
 
 interface Props {
   moduleStatus: ModuleStatus;
@@ -25,7 +28,7 @@ export function InfluenceModule({ moduleStatus, onRefresh, onOpenLibrary }: Prop
   const [throttleHint, setThrottleHint] = useState<string | null>(null);
 
   const loadThrottle = useCallback(async () => {
-    const r = await computeReadiness();
+    const r = await getReadiness();
     if (shouldThrottleInfluence(r)) {
       setThrottleHint(
         'Degraded: укрепите FOUNDATION / REGULATION / MIND — приоритет Protocol и короткое Observation.'
@@ -49,20 +52,28 @@ export function InfluenceModule({ moduleStatus, onRefresh, onOpenLibrary }: Prop
 
   return (
     <div>
-      <h1 style={{ fontFamily: 'var(--mono)', marginBottom: '1rem' }}>
-        INFLUENCE — Этап 4 · Тактика класса
-      </h1>
-      <GlossaryZone>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
-          Influence: ethics protocol, MI, nudge, bias log, observation debrief — влияние без
-          манипуляций и с опорой на readiness.
-        </p>
-      </GlossaryZone>
+      <ModuleShell
+        title="INFLUENCE"
+        subtitle="STG-4 · CLASS TACTICS"
+        chips={
+          <>
+            {degraded && <span className="tag warn">DEGRADED</span>}
+            {throttleHint && <span className="tag warn">THROTTLE</span>}
+          </>
+        }
+      />
       {degraded && <div className="alert-banner">{degraded}</div>}
       {throttleHint && <div className="alert-banner">{throttleHint}</div>}
 
       <InfluenceOpsSummary onRefresh={handleActivity} />
       <StageBooksWidget level={4} onOpenLibrary={onOpenLibrary} />
+
+      <div className="grid-2">
+        <ContactsPanel onSaved={handleActivity} />
+        <OperationsPanel onSaved={handleActivity} />
+      </div>
+
+      <PreContactPanel onSaved={handleActivity} />
 
       <div className="grid-2">
         <InfluenceProtocolPanel onSaved={handleActivity} />

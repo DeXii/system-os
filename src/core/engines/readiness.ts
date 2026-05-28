@@ -168,6 +168,14 @@ async function mindScore(): Promise<number> {
 
   let total = chessCountScore + chessMinScore + reflectScore + scenarioScore + decisionScore;
 
+  const studyCount = await db.studySessions.where('date').aboveOrEqual(since).count();
+  total += Math.min(5, studyCount >= 2 ? 5 : studyCount * 2);
+
+  const { getDecisionClosureRate14d } = await import('./decision-followup');
+  const closurePct = await getDecisionClosureRate14d();
+  if (closurePct >= 70) total += 5;
+  else if (closurePct >= 40) total += 2;
+
   const { getWeeklyReadingStatus } = await import('./library-books');
   const weekly = await getWeeklyReadingStatus();
   if (weekly.missionDone) total += 5;
@@ -198,12 +206,23 @@ async function influenceScore(): Promise<number> {
     (e) => e.type === 'bias' || e.type === 'observation' || e.type === 'debrief'
   ).length;
 
-  const miScore = Math.min(40, (miCount / 2) * 40);
-  const nudgeScore = Math.min(25, nudgeCount >= 1 ? 25 : 0);
-  const protocolScore = Math.min(20, (protocolDays / 2) * 20);
+  const miScore = Math.min(35, (miCount / 2) * 35);
+  const nudgeScore = Math.min(20, nudgeCount >= 1 ? 20 : 0);
+  const protocolScore = Math.min(15, (protocolDays / 2) * 15);
   const extraScore = Math.min(15, biasOrObs >= 1 ? 15 : 0);
 
-  return clamp(miScore + nudgeScore + protocolScore + extraScore);
+  const contactCount = await db.contacts.count();
+  const activeOps = (await db.operations.toArray()).filter(
+    (o) => o.phase !== 'closed' && o.status !== 'lost'
+  ).length;
+  const dossierScore = Math.min(10, contactCount >= 1 ? 5 : 0) + Math.min(5, activeOps >= 1 ? 5 : 0);
+
+  return clamp(miScore + nudgeScore + protocolScore + extraScore + dossierScore);
+}
+
+export async function getReadiness(): Promise<ReadinessScores> {
+  const { getReadinessCached } = await import('../cache/readiness-cache');
+  return getReadinessCached();
 }
 
 export async function computeReadiness(): Promise<ReadinessScores> {
@@ -248,7 +267,7 @@ export async function computeReadiness(): Promise<ReadinessScores> {
 export async function getRuleHints(): Promise<string[]> {
   const hints: string[] = [];
   const today = todayKey();
-  const readiness = await computeReadiness();
+  const readiness = await getReadiness();
   const profile = await db.operator.toCollection().first();
 
   const hrvToday = await db.hrvEntries.where('date').equals(today).count();
@@ -367,6 +386,48 @@ export async function getRuleHints(): Promise<string[]> {
   const todayReport = await getOrCreateDayReport(today);
   if (!todayReport.briefingDone) {
     hints.push('Утренний briefing DIRECTOR ещё не выполнен');
+  }
+
+  const { getPendingDecisionFollowUps } = await import('./decision-followup');
+  const pendingDecisions = await getPendingDecisionFollowUps();
+  if (pendingDecisions.length > 0) {
+    hints.push(
+      `Просрочен проверка исхода решения: ${pendingDecisions[0].title.slice(0, 40)}`
+    );
+  }
+
+  const { getOverdueOperations } = await import('./operation-metrics');
+  const overdueOps = await getOverdueOperations();
+  if (overdueOps.length > 0) {
+    hints.push(`Операция просрочена: ${overdueOps[0].title.slice(0, 40)}`);
+  }
+
+  const { getContactsSummary } = await import('./contact-metrics');
+  const contactsSummary = await getContactsSummary();
+  if (contactsSummary.needingDebrief.length > 0) {
+    hints.push(
+      `Debrief по контакту: ${contactsSummary.needingDebrief[0].codename}`
+    );
+  }
+
+  const studySince = dateKeyDaysAgo(4);
+  const studyCount = await db.studySessions.where('date').aboveOrEqual(studySince).count();
+  if (studyCount === 0 && profile && profile.unlockedStages.includes('mind')) {
+    hints.push('5+ дней без учёбы — слот mind.study');
+  }
+
+  const { isDoctrineEmpty } = await import('./doctrine-service');
+  if (await isDoctrineEmpty()) {
+    hints.push('Доктрина оператора не задана — INTEGRATION → Doctrine');
+  }
+
+  const reports7 = await db.dayReports
+    .where('date')
+    .aboveOrEqual(dateKeyDaysAgo(6))
+    .toArray();
+  const lowComplianceDays = reports7.filter((r) => r.compliance < 60).length;
+  if (lowComplianceDays >= 3) {
+    hints.push('Compliance < 60% три дня подряд — вечерний debrief обязателен');
   }
 
   return hints;

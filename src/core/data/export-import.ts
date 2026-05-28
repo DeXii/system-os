@@ -1,6 +1,6 @@
 import { db } from '../db';
 
-export const EXPORT_VERSION = 8;
+export const EXPORT_VERSION = 10;
 
 export const EXPORT_TABLE_KEYS = [
   'operator',
@@ -35,6 +35,14 @@ export const EXPORT_TABLE_KEYS = [
   'operatorFitnessLevels',
   'workoutTypeStats',
   'cardioSessions',
+  'contacts',
+  'operations',
+  'operatorDoctrine',
+  'triggerLogs',
+  'studySessions',
+  'domainEvents',
+  'dbMeta',
+  'derivedSnapshots',
 ] as const;
 
 type ExportTableKey = (typeof EXPORT_TABLE_KEYS)[number];
@@ -72,6 +80,14 @@ const TABLE_MAP: Record<ExportTableKey, keyof typeof db> = {
   operatorFitnessLevels: 'operatorFitnessLevels',
   workoutTypeStats: 'workoutTypeStats',
   cardioSessions: 'cardioSessions',
+  contacts: 'contacts',
+  operations: 'operations',
+  operatorDoctrine: 'operatorDoctrine',
+  triggerLogs: 'triggerLogs',
+  studySessions: 'studySessions',
+  domainEvents: 'domainEvents',
+  dbMeta: 'dbMeta',
+  derivedSnapshots: 'derivedSnapshots',
 };
 
 function getTable(key: ExportTableKey) {

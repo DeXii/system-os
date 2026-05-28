@@ -270,6 +270,8 @@ export interface ScenarioAnalysis {
   scenariosText?: string;
   linkedDecisionId?: string;
   directorReview?: string;
+  operationId?: string;
+  contactIds?: string[];
 }
 
 export interface DecisionLogEntry {
@@ -282,6 +284,64 @@ export interface DecisionLogEntry {
   expectedOutcome: string;
   actualOutcome?: string;
   linkedScenarioId?: string;
+  followUpDueDate?: string;
+  followUpDone?: boolean;
+}
+
+export type OperationPhase = 'planning' | 'active' | 'closed';
+export type OperationStatus = 'open' | 'won' | 'lost' | 'paused';
+
+export interface ContactProfile {
+  id: string;
+  codename: string;
+  role?: string;
+  stakes?: string;
+  motives?: string;
+  triggers?: string;
+  weaknesses?: string;
+  disclosureNotes?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Operation {
+  id: string;
+  title: string;
+  goal: string;
+  phase: OperationPhase;
+  status: OperationStatus;
+  deadline?: string;
+  contactIds: string[];
+  linkedScenarioIds: string[];
+  linkedDecisionIds: string[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OperatorDoctrine {
+  id: 'doctrine';
+  rules: string[];
+  updatedAt: string;
+}
+
+export interface TriggerLog {
+  id: string;
+  date: string;
+  situation: string;
+  bodyReaction: string;
+  actionTaken: string;
+  maskScore: number;
+}
+
+export interface StudySession {
+  id: string;
+  date: string;
+  subject: string;
+  durationMin: number;
+  topic: string;
+  notes?: string;
 }
 
 export interface LibraryBook {
@@ -335,6 +395,10 @@ export interface InfluenceEntry {
   correction?: string;
   /** Influence Protocol checklist state */
   protocolChecks?: boolean[];
+  contactId?: string;
+  maskUsed?: string;
+  infoDisclosed?: string;
+  infoHeld?: string;
 }
 
 export interface Mission {
@@ -386,7 +450,7 @@ export interface DayScheduleOverride {
   date: string;
   slots: ScheduleSlot[];
   note?: string;
-  source: 'manual' | 'director';
+  source: 'manual' | 'director' | 'system';
 }
 
 export interface BarExercise {

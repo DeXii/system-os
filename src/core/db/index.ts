@@ -33,8 +33,15 @@ import type {
   WorkoutTypeStat,
   CardioSession,
   WorkoutKind,
+  ContactProfile,
+  Operation,
+  OperatorDoctrine,
+  TriggerLog,
+  StudySession,
 } from '../domain/types';
 import type { GlossaryCacheEntry } from '../glossary/types';
+import type { DomainEventRecord } from '../domain/contracts/events';
+import type { DbMetaState, DerivedSnapshotRecord } from '../domain/contracts/states';
 
 export class AyanakojiDB extends Dexie {
   operator!: Table<OperatorProfile, string>;
@@ -70,6 +77,14 @@ export class AyanakojiDB extends Dexie {
   workoutTypeStats!: Table<WorkoutTypeStat, WorkoutKind>;
   cardioSessions!: Table<CardioSession, string>;
   glossaryCache!: Table<GlossaryCacheEntry, string>;
+  contacts!: Table<ContactProfile, string>;
+  operations!: Table<Operation, string>;
+  operatorDoctrine!: Table<OperatorDoctrine, string>;
+  triggerLogs!: Table<TriggerLog, string>;
+  studySessions!: Table<StudySession, string>;
+  domainEvents!: Table<DomainEventRecord, string>;
+  dbMeta!: Table<DbMetaState, string>;
+  derivedSnapshots!: Table<DerivedSnapshotRecord, string>;
 
   constructor() {
     super('ayanakoji_os');
@@ -298,6 +313,53 @@ export class AyanakojiDB extends Dexie {
               kind: 'legacy',
               structure: 'straight_sets',
             });
+          }
+        }
+      });
+    this.version(12).stores({
+      contacts: 'id, codename, updatedAt',
+      operations: 'id, phase, status, deadline',
+      operatorDoctrine: 'id',
+      triggerLogs: 'id, date',
+      studySessions: 'id, date, subject',
+    });
+    this.version(13)
+      .stores({
+        domainEvents: 'id, type, timestamp',
+        dbMeta: 'id',
+        derivedSnapshots: 'id, kind, date',
+      })
+      .upgrade(async (tx) => {
+        const now = new Date().toISOString();
+        const existing = await tx.table('dbMeta').get('db-meta');
+        if (!existing) {
+          await tx.table('dbMeta').put({
+            id: 'db-meta',
+            globalRevision: 0,
+            lastUpdated: now,
+            deviceId: '',
+          });
+        }
+        const metaTables = [
+          'missions',
+          'protocolItems',
+          'setLogs',
+          'hrvEntries',
+          'operator',
+        ] as const;
+        for (const name of metaTables) {
+          const table = tx.table(name);
+          const rows = await table.toArray();
+          for (const row of rows) {
+            const r = row as Record<string, unknown>;
+            const patch: Record<string, unknown> = {};
+            if (!r.createdAt) patch.createdAt = now;
+            if (!r.updatedAt) patch.updatedAt = now;
+            if (r.revision == null) patch.revision = 1;
+            if (!r.source) patch.source = 'import';
+            if (Object.keys(patch).length) {
+              await table.update(String(r.id), patch);
+            }
           }
         }
       });

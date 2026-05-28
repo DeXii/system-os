@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { computeReadiness } from '@/core/engines/readiness';
+import { getReadiness } from '@/core/engines/readiness';
 import { shouldThrottleCognitiveLoad } from '@/core/engines/mind-metrics';
 import { getDegradedMessage } from '@/core/engines/stage-gates';
 import type { ModuleStatus } from '@/core/domain/types';
@@ -7,11 +7,12 @@ import { StageBooksWidget } from '@/modules/library/components/StageBooksWidget'
 import { ChessGoJournalPanel } from './components/ChessGoJournalPanel';
 import { ChessGoHistory } from './components/ChessGoHistory';
 import { DecisionLogPanel } from './components/DecisionLogPanel';
+import { StudyLogPanel } from './components/StudyLogPanel';
 import { MetacognitionPanel } from './components/MetacognitionPanel';
 import { MindDirectorPanel } from './components/MindDirectorPanel';
 import { MindOpsSummary } from './components/MindOpsSummary';
 import { SwotScenarioPanel } from './components/SwotScenarioPanel';
-import { GlossaryZone } from '@/ui/glossary';
+import { ModuleShell } from '@/ui/shell/ModuleShell';
 
 interface Props {
   moduleStatus: ModuleStatus;
@@ -23,7 +24,7 @@ export function MindModule({ moduleStatus, onRefresh, onOpenLibrary }: Props) {
   const [throttleHint, setThrottleHint] = useState<string | null>(null);
 
   const loadThrottle = useCallback(async () => {
-    const r = await computeReadiness();
+    const r = await getReadiness();
     if (shouldThrottleCognitiveLoad(r)) {
       setThrottleHint(
         'Низкий foundation/regulation — приоритет лёгкой когнитивки; тяжёлые SWOT по необходимости.'
@@ -46,14 +47,18 @@ export function MindModule({ moduleStatus, onRefresh, onOpenLibrary }: Props) {
 
   return (
     <div>
-      <h1 style={{ fontFamily: 'var(--mono)', marginBottom: '1rem' }}>MIND — Этап 3</h1>
-      <GlossaryZone>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
-          Mind: chess, go, SWOT, scenario analysis, OODA, PMR, decision log; при cognitive throttle —
-          меньше тяжёлой cognitive load.
-        </p>
-      </GlossaryZone>
+      <ModuleShell
+        title="MIND"
+        subtitle="STG-3 · COGNITIVE OPS"
+        chips={
+          <>
+            {degraded && <span className="tag warn">DEGRADED</span>}
+            {throttleHint && <span className="tag warn">THROTTLE</span>}
+          </>
+        }
+      />
       {degraded && <div className="alert-banner">{degraded}</div>}
+      {throttleHint && <div className="alert-banner">{throttleHint}</div>}
 
       <MindOpsSummary onRefresh={handleActivity} />
       <StageBooksWidget level={3} onOpenLibrary={onOpenLibrary} />
@@ -68,7 +73,10 @@ export function MindModule({ moduleStatus, onRefresh, onOpenLibrary }: Props) {
         <MetacognitionPanel onSaved={handleActivity} />
       </div>
 
-      <DecisionLogPanel onSaved={handleActivity} />
+      <div className="grid-2">
+        <DecisionLogPanel onSaved={handleActivity} />
+        <StudyLogPanel onSaved={handleActivity} />
+      </div>
       <MindDirectorPanel onApplied={handleActivity} />
     </div>
   );

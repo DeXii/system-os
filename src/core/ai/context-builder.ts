@@ -5,7 +5,7 @@ import { db, dateKeyDaysAgo, todayKey } from '../db';
 import { getFitnessLevels, tierForWorkoutKind } from '../engines/progression-engine';
 import { getRecommendedGppSubtype, getWorkoutTypeStat } from '../engines/workout-stats';
 import { getTodayCompliance } from '../engines/command-compliance';
-import { computeReadiness, getRuleHints } from '../engines/readiness';
+import { getReadiness, getRuleHints } from '../engines/readiness';
 import { getModuleStatuses } from '../engines/stage-gates';
 import { getStageProgress, getStreakProgress } from '../engines/stage-progression';
 import { buildTodayQueue, getWeekTemplate } from '../engines/week-schedule';
@@ -33,6 +33,8 @@ import {
 } from '../engines/integration-metrics';
 import { getReadingProgressByLevel } from '../engines/library-books';
 import type { GppSubtype, SetLog, WorkoutKind } from '../domain/types';
+import { buildContextConstraints } from './constraints-builder';
+import { EQUIPMENT_ALLOWED, EQUIPMENT_FORBIDDEN } from './prompts/rules/equipment.rules';
 
 export type ContextLookbackDays = 7 | 14 | 30;
 
@@ -84,89 +86,150 @@ function omitExerciseCatalog(
   return f;
 }
 
+export function splitLayeredContext(fullContext: Record<string, unknown>): {
+  fact: Record<string, unknown>;
+  derived: Record<string, unknown>;
+  hints: Record<string, unknown>;
+} {
+  const regulation = fullContext.regulation as Record<string, unknown>;
+  const {
+    readinessRegulation,
+    readinessFoundation,
+    hrvTrendInWindow,
+    hrvBaseline14d,
+    ...regulationFact
+  } = regulation;
+  const mind = fullContext.mind as Record<string, unknown>;
+  const { cognitiveThrottle, ops7d: mindOps7d, ...mindFact } = mind;
+  const influence = fullContext.influence as Record<string, unknown>;
+  const { throttle, ops7d: influenceOps7d, ...influenceFact } = influence;
+
+  return {
+    fact: {
+      operator: fullContext.operator,
+      schedule: fullContext.schedule,
+      today: fullContext.today,
+      recent: fullContext.recent,
+      yesterdayPendingMissions: fullContext.yesterdayPendingMissions,
+      foundation: fullContext.foundation,
+      regulation: regulationFact,
+      mind: mindFact,
+      influence: influenceFact,
+      operations: fullContext.operations,
+      doctrine: fullContext.doctrine,
+      readingProgress: fullContext.readingProgress,
+    },
+    derived: {
+      readiness: fullContext.readiness,
+      moduleStatuses: fullContext.moduleStatuses,
+      operatorMode: fullContext.operatorMode,
+      stageProgress: fullContext.stageProgress,
+      compliance: fullContext.compliance,
+      integration: fullContext.integration,
+      regulation: { readinessRegulation, readinessFoundation, hrvTrendInWindow, hrvBaseline14d },
+      mind: { ops7d: mindOps7d, cognitiveThrottle },
+      influence: { ops7d: influenceOps7d, throttle },
+    },
+    hints: {
+      constraints: fullContext.constraints,
+      aiMode: fullContext.aiMode,
+      ruleHints: fullContext.ruleHints,
+    },
+  };
+}
+
 function selectContextPayload(
-  fullContext: Record<string, unknown>,
+  layered: Record<string, unknown>,
   effectiveScope: string
 ): Record<string, unknown> {
+  const fact = layered.fact as Record<string, unknown>;
+  const derived = layered.derived as Record<string, unknown>;
+  const hints = layered.hints as Record<string, unknown>;
+
   if (
     effectiveScope === 'full' ||
     effectiveScope === 'director' ||
     effectiveScope === 'archive'
   ) {
-    return { ...fullContext, scope: effectiveScope };
+    return { ...layered, scope: effectiveScope };
   }
 
   const scoped: Record<string, unknown> = {
-    date: fullContext.date,
-    contextLookbackDays: fullContext.contextLookbackDays,
+    date: layered.date,
+    contextLookbackDays: layered.contextLookbackDays,
+    contextSinceDate: layered.contextSinceDate,
     scope: effectiveScope,
-    operator: fullContext.operator,
-    schedule: fullContext.schedule,
-    readiness: fullContext.readiness,
-    moduleStatuses: fullContext.moduleStatuses,
-    ruleHints: fullContext.ruleHints,
-    stageProgress: fullContext.stageProgress,
-    compliance: fullContext.compliance,
-    yesterdayPendingMissions: fullContext.yesterdayPendingMissions,
-    today: fullContext.today,
-    recent: fullContext.recent,
-    readingProgress: fullContext.readingProgress,
+    fact: { ...fact },
+    derived: { ...derived },
+    hints: { ...hints },
   };
 
-  const foundation = fullContext.foundation as Record<string, unknown>;
-  const regulation = fullContext.regulation as Record<string, unknown>;
+  const foundation = fact.foundation as Record<string, unknown>;
+  const regulationDerived = derived.regulation as Record<string, unknown>;
+
+  const factScoped = scoped.fact as Record<string, unknown>;
+  const derivedScoped = scoped.derived as Record<string, unknown>;
+  const regulationFact = fact.regulation as Record<string, unknown>;
 
   switch (effectiveScope) {
     case 'command':
-      scoped.foundation = {
+      factScoped.foundation = {
         equipmentConstraints: foundation.equipmentConstraints,
         workoutPlanToday: foundation.workoutPlanToday,
         setLogsSummary: foundation.setLogsSummary,
         allowedExerciseIds: foundation.allowedExerciseIds,
-        readinessFoundation: regulation.readinessFoundation,
       };
-      scoped.regulation = {
-        hrvTrendInWindow: regulation.hrvTrendInWindow,
-        readinessRegulation: regulation.readinessRegulation,
-        readinessFoundation: regulation.readinessFoundation,
-        hrvRecent: regulation.hrvRecent,
-        breathing7d: regulation.breathing7d,
+      factScoped.regulation = {
+        hrvRecent: regulationFact.hrvRecent,
+        breathing7d: regulationFact.breathing7d,
+      };
+      derivedScoped.regulation = {
+        hrvTrendInWindow: regulationDerived.hrvTrendInWindow,
+        readinessRegulation: regulationDerived.readinessRegulation,
+        readinessFoundation: regulationDerived.readinessFoundation,
       };
       break;
     case 'foundation':
-      scoped.foundation = omitExerciseCatalog(foundation, effectiveScope);
+      factScoped.foundation = omitExerciseCatalog(foundation, effectiveScope);
+      delete factScoped.regulation;
+      delete factScoped.mind;
+      delete factScoped.influence;
       break;
     case 'regulation':
-      scoped.regulation = fullContext.regulation;
-      scoped.foundation = {
-        readinessFoundation: regulation.readinessFoundation,
-        equipmentConstraints: foundation.equipmentConstraints,
-      };
+      factScoped.regulation = fact.regulation;
+      factScoped.foundation = { equipmentConstraints: foundation.equipmentConstraints };
+      derivedScoped.regulation = derived.regulation;
+      delete factScoped.mind;
+      delete factScoped.influence;
       break;
     case 'mind':
-      scoped.mind = fullContext.mind;
+      delete factScoped.foundation;
+      delete factScoped.regulation;
+      delete factScoped.influence;
       break;
     case 'influence':
-      scoped.influence = fullContext.influence;
+      delete factScoped.foundation;
+      delete factScoped.regulation;
+      delete factScoped.mind;
       break;
     case 'library':
-      scoped.readingProgress = fullContext.readingProgress;
-      scoped.mind = { readingProgress: (fullContext.mind as Record<string, unknown>).readingProgress };
+      factScoped.mind = { readingProgress: (fact.mind as Record<string, unknown>)?.readingProgress };
+      delete factScoped.foundation;
+      delete factScoped.regulation;
+      delete factScoped.influence;
       break;
     case 'integration':
-      scoped.integration = fullContext.integration;
-      scoped.foundation = { bftHistory: foundation.bftHistory };
-      scoped.regulation = { hrvTrendInWindow: regulation.hrvTrendInWindow };
-      scoped.mind = { ops7d: (fullContext.mind as Record<string, unknown>).ops7d };
-      scoped.influence = { ops7d: (fullContext.influence as Record<string, unknown>).ops7d };
+      factScoped.foundation = { bftHistory: foundation.bftHistory };
+      derivedScoped.regulation = { hrvTrendInWindow: regulationDerived.hrvTrendInWindow };
+      delete factScoped.influence;
       break;
     default:
       break;
   }
 
-  if (scoped.foundation && typeof scoped.foundation === 'object') {
-    scoped.foundation = omitExerciseCatalog(
-      scoped.foundation as Record<string, unknown>,
+  if (factScoped.foundation && typeof factScoped.foundation === 'object') {
+    factScoped.foundation = omitExerciseCatalog(
+      factScoped.foundation as Record<string, unknown>,
       effectiveScope
     );
   }
@@ -184,12 +247,24 @@ export async function buildDirectorContext(
   lookbackDays: ContextLookbackDays = 7,
   workoutContext?: WorkoutContextOptions
 ): Promise<string> {
+  const { getCachedContextJson, contextCacheKey } = await import('../cache/context-cache');
+  return getCachedContextJson(
+    contextCacheKey(scope, lookbackDays, workoutContext?.kind),
+    () => buildDirectorContextUncached(scope, lookbackDays, workoutContext)
+  );
+}
+
+async function buildDirectorContextUncached(
+  scope?: string,
+  lookbackDays: ContextLookbackDays = 7,
+  workoutContext?: WorkoutContextOptions
+): Promise<string> {
   const today = todayKey();
   const yesterday = dateKeyDaysAgo(1);
   const since = sinceForLookback(lookbackDays);
 
   const profile = await db.operator.toCollection().first();
-  const readiness = await computeReadiness();
+  const readiness = await getReadiness();
   const hints = await getRuleHints();
   const statuses = getModuleStatuses(readiness);
   const progress = await getStageProgress();
@@ -288,8 +363,34 @@ export async function buildDirectorContext(
     pstRecent,
     readinessRegulation: readiness.regulation,
     readinessFoundation: readiness.foundation,
-    rule: 'Не назначать Wim Hof при низком foundation (<45) или regulation (<40) или RMSSD ниже baseline',
+    constraintKey: 'regulation.wimHof',
   };
+
+  const { getOrCreateDoctrine } = await import('../engines/doctrine-service');
+  const { getActiveContactsForContext, getContactsSummary } = await import(
+    '../engines/contact-metrics'
+  );
+  const { getActiveOperations, getOverdueOperations } = await import(
+    '../engines/operation-metrics'
+  );
+  const { getPendingDecisionFollowUps } = await import('../engines/decision-followup');
+  const { computeOperatorMode } = await import('../engines/operator-mode');
+
+  const doctrine = await getOrCreateDoctrine();
+  const activeContacts = await getActiveContactsForContext();
+  const contactsSummary = await getContactsSummary();
+  const activeOps = await getActiveOperations();
+  const overdueOps = await getOverdueOperations();
+  const pendingFollowUps = await getPendingDecisionFollowUps();
+  const triggerLogsRecent = filterDated(
+    await db.triggerLogs.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => b.date.localeCompare(a.date));
+  const studyRecent = filterDated(
+    await db.studySessions.where('date').aboveOrEqual(since).toArray(),
+    since
+  ).sort((a, b) => b.date.localeCompare(a.date));
+  const operatorMode = await computeOperatorMode(readiness);
 
   const mindOps = await getMindOpsSummary();
   const chessTrend = await getChessRatingTrend(lookbackDays);
@@ -304,14 +405,26 @@ export async function buildDirectorContext(
   const readingProgress = await getReadingProgressByLevel();
   const cognitiveThrottle = shouldThrottleCognitiveLoad(readiness);
 
+  const regulationBlockWithTriggers = {
+    ...regulationBlock,
+    triggerLogsInWindow: triggerLogsRecent.slice(0, 8),
+  };
+
   const mindBlock = {
     chessTrendInWindow: chessTrend,
     ops7d: mindOps,
     recentScenarios,
     recentDecisions,
+    studySessionsInWindow: studyRecent,
+    pendingDecisionFollowUps: pendingFollowUps.map((d) => ({
+      id: d.id,
+      title: d.title,
+      followUpDueDate: d.followUpDueDate,
+      expectedOutcome: d.expectedOutcome?.slice(0, 100),
+    })),
     readingProgress,
     cognitiveThrottle,
-    rule: 'При cognitiveThrottle не назначать тяжёлые SWOT/длинные сценарии. SWOT review — дополни S/W/O/T критически.',
+    constraintKey: 'mind.cognitiveThrottle',
   };
 
   const influenceOps = await getInfluenceOpsSummary();
@@ -325,7 +438,15 @@ export async function buildDirectorContext(
     ops7d: influenceOps,
     recentEntries: recentInfluence,
     throttle: influenceThrottle,
-    rule: 'При throttle — только Influence Protocol + короткое observation, без сложных nudge-цепочек.',
+    contacts: activeContacts.map((c) => ({
+      id: c.id,
+      codename: c.codename,
+      role: c.role,
+      motives: c.motives?.slice(0, 120),
+      disclosureNotes: c.disclosureNotes?.slice(0, 120),
+    })),
+    contactsSummary,
+    constraintKey: 'influence.communication',
   };
 
   const pdp = await db.pdp.toCollection().first();
@@ -340,7 +461,7 @@ export async function buildDirectorContext(
     lastWeeklyAudit: lastWeeklyAudit
       ? { createdAt: lastWeeklyAudit.createdAt, preview: lastWeeklyAudit.text.slice(0, 200) }
       : null,
-    rule: 'Воскресенье — приоритет integration.weekly_audit; bottleneck определяет фокус недели.',
+    constraintKey: 'integration.weekly',
   };
 
   const fitnessLevels = await getFitnessLevels();
@@ -393,18 +514,9 @@ export async function buildDirectorContext(
     setLogsByKind,
     cardioSessionsInWindow: cardioSessionsInWindow,
     equipmentConstraints: {
-      allowed: ['pull-up bar', 'parallel bars', 'bodyweight only'],
-      forbidden: [
-        'barbell',
-        'dumbbells',
-        'gym machines',
-        'squat rack',
-        'kettlebell',
-        'leg press',
-        'cable machine',
-      ],
-      note:
-        'Оператор тренируется без зала. HIFT = круговая на турнике/брусьях и с весом тела. НЕ предлагать штангу и тренажёры.',
+      allowed: EQUIPMENT_ALLOWED,
+      forbidden: EQUIPMENT_FORBIDDEN,
+      constraintKey: 'foundation.equipment',
     },
     calibration,
     workoutPlanToday: workoutPlan ?? null,
@@ -441,19 +553,25 @@ export async function buildDirectorContext(
             measure: e.measure,
             isStatic: e.isStatic,
           })),
-    calibrationRule:
-      'Подбирай нагрузку на грани возможностей: 70–90% выполнения целей. Макс 4 подхода. Анализируй setLogsByKind за 7 дней.',
+    constraintKey: 'foundation.calibration',
     referenceWorkoutTemplates: {
       tierLabel: 'Начинающий (эталон структуры)',
       ...getAllReferenceTemplatesForGroq(),
     },
   };
 
+  const constraints = buildContextConstraints(readiness, operatorMode, {
+    cognitiveThrottle,
+    influenceThrottle,
+  });
+
   const fullContext = {
     date: today,
     contextLookbackDays: lookbackDays,
     contextSinceDate: since,
     scope: scope ?? 'full',
+    constraints,
+    aiMode: constraints.aiMode,
     operator: profile
       ? {
           codename: profile.codename,
@@ -461,7 +579,6 @@ export async function buildDirectorContext(
           currentStage: profile.currentStage,
           unlockedStages: profile.unlockedStages,
           startDate: profile.startDate,
-          ethicsAccepted: profile.ethicsAccepted,
         }
       : null,
     schedule: {
@@ -479,9 +596,22 @@ export async function buildDirectorContext(
       pendingSlots: todayQueue.filter((s) => s.status === 'pending').length,
     },
     foundation: foundationBlock,
-    regulation: regulationBlock,
+    regulation: regulationBlockWithTriggers,
     mind: mindBlock,
     influence: influenceBlock,
+    operations: {
+      active: activeOps.map((o) => ({
+        id: o.id,
+        title: o.title,
+        phase: o.phase,
+        status: o.status,
+        deadline: o.deadline,
+        contactIds: o.contactIds,
+      })),
+      overdue: overdueOps.map((o) => ({ id: o.id, title: o.title, deadline: o.deadline })),
+    },
+    doctrine: { rules: doctrine.rules },
+    operatorMode,
     integration: integrationBlock,
     readingProgress,
     readiness,
@@ -544,8 +674,18 @@ export async function buildDirectorContext(
   };
 
   const effectiveScope = scope ?? 'full';
+  const layeredParts = splitLayeredContext(
+    fullContext as unknown as Record<string, unknown>
+  );
+  const layered = {
+    date: today,
+    contextLookbackDays: lookbackDays,
+    contextSinceDate: since,
+    scope: effectiveScope,
+    ...layeredParts,
+  };
   const payload = selectContextPayload(
-    fullContext as unknown as Record<string, unknown>,
+    layered as unknown as Record<string, unknown>,
     effectiveScope
   );
   return JSON.stringify(payload);
