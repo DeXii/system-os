@@ -137,6 +137,15 @@ export const DIRECTOR_TASKS = [
     core: true,
   },
   {
+    id: 'nutritionCoach',
+    label: 'Nutrition Coach',
+    category: 'coach',
+    defaultScope: 'nutrition',
+    description: 'Рацион, meal plan, shopping',
+    core: true,
+    quick: true,
+  },
+  {
     id: 'regulationCoach',
     label: 'Calm Coach',
     category: 'coach',

@@ -38,6 +38,14 @@ import type {
   OperatorDoctrine,
   TriggerLog,
   StudySession,
+  Ingredient,
+  Dish,
+  NutritionGoal,
+  OperatorBodyMetrics,
+  NutritionPlanState,
+  NutritionDay,
+  MealEntry,
+  ShoppingList,
 } from '../domain/types';
 import type { GlossaryCacheEntry } from '../glossary/types';
 import type { DomainEventRecord } from '../domain/contracts/events';
@@ -85,6 +93,16 @@ export class AyanakojiDB extends Dexie {
   domainEvents!: Table<DomainEventRecord, string>;
   dbMeta!: Table<DbMetaState, string>;
   derivedSnapshots!: Table<DerivedSnapshotRecord, string>;
+  ingredients!: Table<Ingredient, string>;
+  dishes!: Table<Dish, string>;
+  nutritionGoals!: Table<NutritionGoal, string>;
+  operatorBodyMetrics!: Table<OperatorBodyMetrics, string>;
+  nutritionPlanState!: Table<NutritionPlanState, string>;
+  nutritionDays!: Table<NutritionDay, string>;
+  mealEntries!: Table<MealEntry, string>;
+  shoppingLists!: Table<ShoppingList, string>;
+  customIngredients!: Table<Ingredient, string>;
+  customDishes!: Table<Dish, string>;
 
   constructor() {
     super('ayanakoji_os');
@@ -363,6 +381,18 @@ export class AyanakojiDB extends Dexie {
           }
         }
       });
+    this.version(14).stores({
+      ingredients: 'id, category, source, name',
+      dishes: 'id, source, name',
+      nutritionGoals: 'id, active',
+      operatorBodyMetrics: 'id',
+      nutritionPlanState: 'id, planId, updatedAt',
+      nutritionDays: 'id, date',
+      mealEntries: 'id, date, slot',
+      shoppingLists: 'id, planId, updatedAt',
+      customIngredients: 'id, category',
+      customDishes: 'id',
+    });
   }
 }
 

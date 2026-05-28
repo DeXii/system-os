@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EXPORT_VERSION, validateImportPayload } from './export-import';
 
-describe('export-import v10', () => {
+describe('export-import', () => {
   it('accepts domainEvents and dbMeta tables', () => {
     const payload = {
       version: EXPORT_VERSION,
@@ -10,6 +10,6 @@ describe('export-import v10', () => {
     };
     const r = validateImportPayload(payload);
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.version).toBe(10);
+    if (r.ok) expect(r.version).toBe(EXPORT_VERSION);
   });
 });

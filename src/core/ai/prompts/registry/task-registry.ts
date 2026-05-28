@@ -125,6 +125,13 @@ export const TASK_REGISTRY: Record<TaskId, DirectorTaskPromptConfig> = {
     allowedActions: ['set_cardio_session_plan'],
     constraintIds: ['readiness'],
   },
+  nutritionCoach: {
+    templateId: 'analysis',
+    templateParams: { kind: 'weekly' },
+    outputFormat: 'minimal',
+    allowedActions: ['log_note', 'add_mission'],
+    constraintIds: ['readiness'],
+  },
   regulationCoach: {
     templateId: 'regulation',
     outputFormat: 'coachRegulation',

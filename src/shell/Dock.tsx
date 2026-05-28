@@ -3,6 +3,7 @@ import type { ModuleId, ModuleStatus } from '@/core/domain/types';
 const MODULES: { id: ModuleId; label: string; abbr: string }[] = [
   { id: 'command', label: 'COMMAND', abbr: 'CMD' },
   { id: 'foundation', label: 'FOUNDATION', abbr: 'FND' },
+  { id: 'nutrition', label: 'NUTRITION', abbr: 'NUT' },
   { id: 'regulation', label: 'REGULATION', abbr: 'REG' },
   { id: 'mind', label: 'MIND', abbr: 'MND' },
   { id: 'influence', label: 'INFLUENCE', abbr: 'INF' },

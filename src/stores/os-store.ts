@@ -44,6 +44,7 @@ const defaultReadiness: ReadinessScores = {
 const defaultModuleStatuses: Record<ModuleId, ModuleStatus> = {
   command: 'active',
   foundation: 'active',
+  nutrition: 'active',
   regulation: 'active',
   mind: 'active',
   influence: 'active',

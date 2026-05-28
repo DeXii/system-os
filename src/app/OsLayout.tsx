@@ -6,6 +6,7 @@ import { CommandPalette, useCommandPaletteNavigation } from '@/shell/CommandPale
 import { DirectorPanel } from '@/modules/director/DirectorPanel';
 import { CommandModule } from '@/modules/command/CommandModule';
 import { FoundationModule } from '@/modules/foundation/FoundationModule';
+import { NutritionModule } from '@/modules/nutrition/NutritionModule';
 import { RegulationModule } from '@/modules/regulation/RegulationModule';
 import { MindModule } from '@/modules/mind/MindModule';
 import { LibraryModule } from '@/modules/library/LibraryModule';
@@ -110,7 +111,12 @@ export function OsLayout() {
             moduleStatus={moduleStatuses.foundation}
             onRefresh={refresh}
             onOpenLibrary={() => setModule('library')}
+            onOpenNutrition={() => setModule('nutrition')}
           />
+        );
+      case 'nutrition':
+        return (
+          <NutritionModule moduleStatus={moduleStatuses.nutrition} onRefresh={refresh} />
         );
       case 'regulation':
         return (

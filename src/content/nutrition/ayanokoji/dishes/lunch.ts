@@ -1,0 +1,125 @@
+import type { DishPattern } from './dish-seed';
+
+export const LUNCH_PATTERNS: DishPattern[] = [
+  {
+    baseId: 'ln_chicken_rice',
+    name: 'Курица с рисом',
+    slot: 'lunch',
+    ingredients: [
+      { ingredientId: 'chicken_breast', amount: 180, unit: 'g' },
+      { ingredientId: 'rice_white', amount: 90, unit: 'g' },
+      { ingredientId: 'broccoli', amount: 120, unit: 'g' },
+    ],
+    tags: ['ru_basic', 'high_protein', 'stable_energy', 'cheap'],
+    cookTimeMin: 30,
+  },
+  {
+    baseId: 'ln_beef_buckwheat',
+    name: 'Говядина с гречкой',
+    slot: 'lunch',
+    ingredients: [
+      { ingredientId: 'beef_lean', amount: 150, unit: 'g' },
+      { ingredientId: 'buckwheat', amount: 90, unit: 'g' },
+      { ingredientId: 'cabbage', amount: 100, unit: 'g' },
+    ],
+    tags: ['ru_basic', 'high_protein', 'stable_energy'],
+    cookTimeMin: 35,
+  },
+  {
+    baseId: 'ln_turkey_pasta',
+    name: 'Индейка с макаронами',
+    slot: 'lunch',
+    ingredients: [
+      { ingredientId: 'turkey', amount: 170, unit: 'g' },
+      { ingredientId: 'pasta', amount: 85, unit: 'g' },
+      { ingredientId: 'tomato', amount: 100, unit: 'g' },
+    ],
+    tags: ['high_protein', 'cheap'],
+    cookTimeMin: 25,
+  },
+  {
+    baseId: 'ln_fish_potato',
+    name: 'Рыба с картофелем',
+    slot: 'lunch',
+    ingredients: [
+      { ingredientId: 'cod_fillet', amount: 180, unit: 'g' },
+      { ingredientId: 'potato', amount: 200, unit: 'g' },
+      { ingredientId: 'carrot', amount: 80, unit: 'g' },
+    ],
+    tags: ['ru_basic', 'stable_energy', 'light_meal'],
+    cookTimeMin: 30,
+  },
+  {
+    baseId: 'ln_lentil_salad',
+    name: 'Чечевица с салатом',
+    slot: 'lunch',
+    ingredients: [
+      { ingredientId: 'lentils', amount: 100, unit: 'g' },
+      { ingredientId: 'cucumber', amount: 100, unit: 'g' },
+      { ingredientId: 'tomato', amount: 100, unit: 'g' },
+      { ingredientId: 'olive_oil', amount: 10, unit: 'ml' },
+    ],
+    tags: ['high_fiber', 'cheap', 'light_meal'],
+    cookTimeMin: 25,
+  },
+  {
+    baseId: 'ln_tuna_rice',
+    name: 'Тунец с рисом',
+    slot: 'lunch',
+    ingredients: [
+      { ingredientId: 'tuna_canned', amount: 150, unit: 'g' },
+      { ingredientId: 'rice_brown', amount: 80, unit: 'g' },
+      { ingredientId: 'corn', amount: 80, unit: 'g' },
+    ],
+    tags: ['high_protein', 'quick', 'cheap'],
+    cookTimeMin: 15,
+  },
+  {
+    baseId: 'ln_chicken_sweet_potato',
+    name: 'Курица с бататом',
+    slot: 'lunch',
+    ingredients: [
+      { ingredientId: 'chicken_thigh', amount: 160, unit: 'g' },
+      { ingredientId: 'sweet_potato', amount: 180, unit: 'g' },
+      { ingredientId: 'green_beans', amount: 100, unit: 'g' },
+    ],
+    tags: ['high_protein', 'stable_energy', 'sports_food'],
+    cookTimeMin: 35,
+  },
+  {
+    baseId: 'ln_pork_buckwheat',
+    name: 'Свинина с гречкой',
+    slot: 'lunch',
+    ingredients: [
+      { ingredientId: 'pork_lean', amount: 140, unit: 'g' },
+      { ingredientId: 'buckwheat', amount: 85, unit: 'g' },
+      { ingredientId: 'beet', amount: 100, unit: 'g' },
+    ],
+    tags: ['ru_home', 'high_protein', 'cheap'],
+    cookTimeMin: 35,
+  },
+  {
+    baseId: 'ln_chickpea_bowl',
+    name: 'Боул с нутом',
+    slot: 'lunch',
+    ingredients: [
+      { ingredientId: 'chickpeas', amount: 120, unit: 'g' },
+      { ingredientId: 'rice_brown', amount: 70, unit: 'g' },
+      { ingredientId: 'pepper', amount: 100, unit: 'g' },
+    ],
+    tags: ['high_fiber', 'stable_energy', 'budget'],
+    cookTimeMin: 20,
+  },
+  {
+    baseId: 'ln_minced_pasta',
+    name: 'Паста с куриным фаршем',
+    slot: 'lunch',
+    ingredients: [
+      { ingredientId: 'minced_chicken', amount: 160, unit: 'g' },
+      { ingredientId: 'pasta', amount: 90, unit: 'g' },
+      { ingredientId: 'tomato_paste', amount: 30, unit: 'g' },
+    ],
+    tags: ['ru_basic', 'high_protein', 'cheap'],
+    cookTimeMin: 25,
+  },
+];

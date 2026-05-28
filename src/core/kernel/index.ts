@@ -22,3 +22,4 @@ export * from './automations/after-regulation';
 export * from './automations/after-mind';
 export * from './automations/after-influence';
 export * from './automations/after-integration';
+export * from './automations/after-nutrition';

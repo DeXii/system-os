@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { getCatalogExerciseById } from '@/content/exercises';
 import { getExerciseById } from '@/content/exercises-bars';
 import { TASK_KEYS } from '@/content/task-keys';
-import { db, dateKeyDaysAgo, todayKey, uid } from '@/core/db';
+import { db, dateKeyDaysAgo, todayKey } from '@/core/db';
 import { getCalibration } from '@/core/engines/workout-planner';
 import { findSlotByTaskKey } from '@/core/engines/week-schedule';
-import { emitKernel } from '@/core/events/event-bus';
+import { deriveNutritionOk } from '@/core/engines/nutrition-metrics';
+import { afterRecoveryOpsSaved } from '@/core/kernel/automations/after-nutrition';
 import { getDegradedMessage } from '@/core/engines/stage-gates';
 import type { CardioSession, ModuleStatus, SetLog, WorkoutPlan } from '@/core/domain/types';
 import { BftPanel } from './components/BftPanel';
@@ -23,9 +24,10 @@ interface Props {
   moduleStatus: ModuleStatus;
   onRefresh: () => void;
   onOpenLibrary?: () => void;
+  onOpenNutrition?: () => void;
 }
 
-export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary }: Props) {
+export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary, onOpenNutrition }: Props) {
   const [livePlan, setLivePlan] = useState<WorkoutPlan | null>(null);
   const [cardioSession, setCardioSession] = useState<CardioSession | null>(null);
   const [setLogs, setSetLogs] = useState<SetLog[]>([]);
@@ -49,15 +51,12 @@ export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
 
   const saveRecovery = async () => {
     const today = todayKey();
-    const existing = await db.dailyLogs.where('date').equals(today).first();
-    await db.dailyLogs.put({
-      id: existing?.id ?? uid(),
-      date: today,
+    const nutritionDerived = await deriveNutritionOk(today);
+    await afterRecoveryOpsSaved(today, {
       sleepHours: Number(recovery.sleep),
-      nutritionOk: recovery.nutrition,
       hydrationOk: recovery.hydration,
+      nutritionOk: recovery.nutrition || nutritionDerived,
     });
-    await emitKernel('foundation', 'Recovery ops обновлены', 'info');
     onRefresh();
   };
 
@@ -151,6 +150,11 @@ export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
             onChange={(e) => setRecovery({ ...recovery, nutrition: e.target.checked })}
           />
           Питание OK
+          {onOpenNutrition && (
+            <button type="button" className="btn btn-sm" style={{ marginLeft: 8 }} onClick={onOpenNutrition}>
+              NUTRITION →
+            </button>
+          )}
         </div>
         <div className="check-row">
           <input

@@ -1,0 +1,125 @@
+import type { DishPattern } from './dish-seed';
+
+export const DINNER_PATTERNS: DishPattern[] = [
+  {
+    baseId: 'dn_fish_salad',
+    name: 'Рыба с овощным салатом',
+    slot: 'dinner',
+    ingredients: [
+      { ingredientId: 'cod_fillet', amount: 160, unit: 'g' },
+      { ingredientId: 'cucumber', amount: 100, unit: 'g' },
+      { ingredientId: 'tomato', amount: 100, unit: 'g' },
+      { ingredientId: 'olive_oil', amount: 8, unit: 'ml' },
+    ],
+    tags: ['light_meal', 'high_protein', 'stable_energy'],
+    cookTimeMin: 20,
+  },
+  {
+    baseId: 'dn_chicken_veg',
+    name: 'Курица с овощами',
+    slot: 'dinner',
+    ingredients: [
+      { ingredientId: 'chicken_breast', amount: 160, unit: 'g' },
+      { ingredientId: 'zucchini', amount: 120, unit: 'g' },
+      { ingredientId: 'broccoli', amount: 100, unit: 'g' },
+    ],
+    tags: ['high_protein', 'light_meal', 'cheap'],
+    cookTimeMin: 25,
+  },
+  {
+    baseId: 'dn_turkey_salad',
+    name: 'Индейка с салатом',
+    slot: 'dinner',
+    ingredients: [
+      { ingredientId: 'turkey', amount: 150, unit: 'g' },
+      { ingredientId: 'cabbage', amount: 120, unit: 'g' },
+      { ingredientId: 'carrot', amount: 60, unit: 'g' },
+    ],
+    tags: ['high_protein', 'light_meal', 'high_fiber'],
+    cookTimeMin: 20,
+  },
+  {
+    baseId: 'dn_cottage_bake',
+    name: 'Творожная запеканка',
+    slot: 'dinner',
+    ingredients: [
+      { ingredientId: 'cottage_5', amount: 200, unit: 'g' },
+      { ingredientId: 'eggs', amount: 2, unit: 'pcs' },
+      { ingredientId: 'berries_frozen', amount: 60, unit: 'g' },
+    ],
+    tags: ['ru_home', 'high_protein', 'light_meal'],
+    cookTimeMin: 30,
+  },
+  {
+    baseId: 'dn_eggs_salad',
+    name: 'Яйца с салатом',
+    slot: 'dinner',
+    ingredients: [
+      { ingredientId: 'eggs', amount: 3, unit: 'pcs' },
+      { ingredientId: 'spinach', amount: 80, unit: 'g' },
+      { ingredientId: 'tomato', amount: 100, unit: 'g' },
+    ],
+    tags: ['high_protein', 'quick', 'cheap'],
+    cookTimeMin: 12,
+  },
+  {
+    baseId: 'dn_mackerel_potato',
+    name: 'Скумбрия с картофелем',
+    slot: 'dinner',
+    ingredients: [
+      { ingredientId: 'mackerel', amount: 140, unit: 'g' },
+      { ingredientId: 'potato', amount: 150, unit: 'g' },
+      { ingredientId: 'onion', amount: 50, unit: 'g' },
+    ],
+    tags: ['ru_basic', 'recovery', 'stable_energy'],
+    cookTimeMin: 35,
+  },
+  {
+    baseId: 'dn_lentil_soup',
+    name: 'Суп из чечевицы',
+    slot: 'dinner',
+    ingredients: [
+      { ingredientId: 'lentils', amount: 90, unit: 'g' },
+      { ingredientId: 'carrot', amount: 80, unit: 'g' },
+      { ingredientId: 'onion', amount: 60, unit: 'g' },
+    ],
+    tags: ['high_fiber', 'light_meal', 'cheap'],
+    cookTimeMin: 30,
+  },
+  {
+    baseId: 'dn_beef_veg',
+    name: 'Говядина с овощами',
+    slot: 'dinner',
+    ingredients: [
+      { ingredientId: 'beef_lean', amount: 130, unit: 'g' },
+      { ingredientId: 'pepper', amount: 100, unit: 'g' },
+      { ingredientId: 'mushrooms', amount: 100, unit: 'g' },
+    ],
+    tags: ['high_protein', 'stable_energy'],
+    cookTimeMin: 30,
+  },
+  {
+    baseId: 'dn_tuna_salad',
+    name: 'Тунец с салатом',
+    slot: 'dinner',
+    ingredients: [
+      { ingredientId: 'tuna_canned', amount: 140, unit: 'g' },
+      { ingredientId: 'cucumber', amount: 100, unit: 'g' },
+      { ingredientId: 'eggs', amount: 1, unit: 'pcs' },
+    ],
+    tags: ['high_protein', 'quick', 'light_meal'],
+    cookTimeMin: 10,
+  },
+  {
+    baseId: 'dn_pumpkin_chicken',
+    name: 'Курица с тыквой',
+    slot: 'dinner',
+    ingredients: [
+      { ingredientId: 'chicken_breast', amount: 150, unit: 'g' },
+      { ingredientId: 'pumpkin', amount: 150, unit: 'g' },
+      { ingredientId: 'spinach', amount: 60, unit: 'g' },
+    ],
+    tags: ['light_meal', 'high_fiber', 'recovery'],
+    cookTimeMin: 28,
+  },
+];

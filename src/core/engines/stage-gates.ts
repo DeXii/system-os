@@ -13,6 +13,7 @@ export function getModuleStatuses(readiness: ReadinessScores): Record<ModuleId, 
     archive: 'active',
     integration: 'active',
     foundation: foundationWeak ? 'degraded' : 'active',
+    nutrition: foundationWeak ? 'degraded' : 'active',
     regulation: regulationWeak ? 'degraded' : 'active',
     mind: foundationWeak || regulationWeak ? 'degraded' : 'active',
     influence:
@@ -29,6 +30,7 @@ export function getDegradedMessage(module: ModuleId): string | null {
     influence:
       'INFLUENCE в degraded mode: требуется стабильный фундамент и саморегуляция.',
     foundation: 'FOUNDATION требует внимания — это база всей системы.',
+    nutrition: 'NUTRITION: укрепите питание и recovery — фундамент просел.',
     regulation: 'REGULATION просел — HRV и дыхание в приоритете.',
   };
   return messages[module] ?? null;

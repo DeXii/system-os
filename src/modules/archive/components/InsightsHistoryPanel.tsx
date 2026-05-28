@@ -11,6 +11,7 @@ const SCOPE_OPTIONS: Array<ModuleId | 'full' | ''> = [
   'full',
   'command',
   'foundation',
+  'nutrition',
   'regulation',
   'mind',
   'influence',

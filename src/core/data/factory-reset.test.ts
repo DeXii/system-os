@@ -46,8 +46,9 @@ describe('clearAllLocalOsData', () => {
     await db.glossaryCache.put({
       id: 'term:test',
       term: 'test',
-      definition: 'def',
-      fetchedAt: new Date().toISOString(),
+      text: 'def',
+      source: 'dict',
+      updatedAt: new Date().toISOString(),
     });
     expect(await db.glossaryCache.count()).toBe(1);
 

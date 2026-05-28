@@ -2,6 +2,7 @@ export type StageId = 'foundation' | 'regulation' | 'mind' | 'influence';
 export type ModuleId =
   | 'command'
   | 'foundation'
+  | 'nutrition'
   | 'regulation'
   | 'mind'
   | 'influence'
@@ -10,6 +11,8 @@ export type ModuleId =
   | 'director'
   | 'prompt'
   | 'archive';
+
+export * from './nutrition-types';
 export type MissionPriority = 'critical' | 'routine' | 'optional';
 export type MissionStatus = 'pending' | 'done' | 'skipped';
 export type ModuleStatus = 'active' | 'degraded' | 'locked';
