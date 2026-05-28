@@ -1,6 +1,7 @@
 import { ArchiveOpsSummary } from './components/ArchiveOpsSummary';
 import { CloudSyncPanel } from './components/CloudSyncPanel';
 import { ExportImportPanel } from './components/ExportImportPanel';
+import { SystemResetPanel } from './components/SystemResetPanel';
 import { GroqSettingsPanel } from './components/GroqSettingsPanel';
 import { InsightsHistoryPanel } from './components/InsightsHistoryPanel';
 import { DomainEventsPanel } from './components/DomainEventsPanel';
@@ -20,6 +21,7 @@ export function ArchiveModule({ onRefresh, onOpenDirector }: Props) {
       <CloudSyncPanel />
       <GroqSettingsPanel onOpenDirector={onOpenDirector} />
       <ExportImportPanel onRefresh={onRefresh} />
+      <SystemResetPanel />
       <InsightsHistoryPanel onApplied={onRefresh} />
       <DomainEventsPanel />
     </div>

@@ -1,5 +1,5 @@
 import { buildCatalogSeedBooks } from '@/content/os-books-catalog';
-import { db } from '../db';
+import { db, toLocalDateKey } from '../db';
 import type { BookLevel, LibraryBook } from '../domain/types';
 
 export async function ensureLibrarySeeded(): Promise<void> {
@@ -39,7 +39,7 @@ export function weekStartKey(date = new Date()): string {
   const day = d.getDay();
   const diff = day === 0 ? 6 : day - 1;
   d.setDate(d.getDate() - diff);
-  return d.toISOString().split('T')[0];
+  return toLocalDateKey(d);
 }
 
 export async function getWeeklyReadingStatus(): Promise<{

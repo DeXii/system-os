@@ -8,6 +8,7 @@ export type ModuleId =
   | 'library'
   | 'integration'
   | 'director'
+  | 'prompt'
   | 'archive';
 export type MissionPriority = 'critical' | 'routine' | 'optional';
 export type MissionStatus = 'pending' | 'done' | 'skipped';

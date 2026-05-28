@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../db';
 import {
   EXPORT_TABLE_KEYS,
@@ -30,6 +30,7 @@ let status: CloudSyncStatus = 'idle';
 let statusError = '';
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let pushInFlight = false;
+let pushPending = false;
 let cloudSyncPaused = false;
 let listeners = new Set<() => void>();
 let dbUnsubscribe: (() => void) | null = null;
@@ -240,14 +241,39 @@ export async function pullFromCloud(): Promise<
   }
 }
 
+export async function deleteCloudSnapshot(): Promise<{ ok: boolean; error?: string }> {
+  if (!isFirebaseConfigured()) return { ok: true };
+  const user = getCurrentUser();
+  if (!user) return { ok: false, error: 'Требуется вход' };
+
+  setStatus('syncing');
+  try {
+    const snap = await getDoc(metaDocRef(user.uid));
+    if (snap.exists()) {
+      await deleteDoc(metaDocRef(user.uid));
+    }
+    lastRemoteUpdatedAt = '';
+    setStatus('synced');
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Ошибка удаления облачных данных';
+    setStatus('error', msg);
+    return { ok: false, error: msg };
+  }
+}
+
 export async function pushToCloud(): Promise<{ ok: boolean; error?: string }> {
   if (!isFirebaseConfigured()) return { ok: false, error: 'Firebase не настроен' };
   const user = getCurrentUser();
   if (!user) return { ok: false, error: 'Требуется вход' };
-  if (pushInFlight) return { ok: true };
+  if (pushInFlight) {
+    pushPending = true;
+    return { ok: true };
+  }
   if (cloudSyncPaused) return { ok: true };
 
   pushInFlight = true;
+  pushPending = false;
   setStatus('syncing');
   try {
     const payload = await exportSnapshotObject();
@@ -276,6 +302,10 @@ export async function pushToCloud(): Promise<{ ok: boolean; error?: string }> {
     return { ok: false, error: msg };
   } finally {
     pushInFlight = false;
+    if (pushPending) {
+      pushPending = false;
+      void pushToCloud();
+    }
   }
 }
 

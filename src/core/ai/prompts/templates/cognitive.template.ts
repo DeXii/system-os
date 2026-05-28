@@ -3,15 +3,12 @@ import type { CognitiveTemplateParams } from '../../director/director-types';
 export function renderCognitiveTemplate(params: CognitiveTemplateParams): string {
   switch (params.kind) {
     case 'coach':
-      return `ЗАДАЧА: план EF, chess/Go, метапознание (PMR/OODA), SWOT при запросе.
-Данные: mind.ops7d, studySessionsInWindow, pendingDecisionFollowUps, chessTrendInWindow, cognitiveThrottle.
-В «Решение»: когнитивный режим, chess/Go, SWOT/сценарий, 3 действия.`;
+      return `ЗАДАЧА: когнитивный план.
+Почему такая нагрузка сейчас; один блок (chess/PMR/SWOT по запросу); при cognitiveThrottle — только лёгкое.`;
     case 'tacticalDebrief':
-      return `ЗАДАЧА: разбор решений.
-В «Решение»: оценка, искажения, альтернатива, урок.`;
+      return `ЗАДАЧА: разбор решений. Урок и один вывод.`;
     case 'decisionFollowUp':
-      return `ЗАДАЧА: закрыть mind.pendingDecisionFollowUps.
-В «Решение»: просроченные решения, сверка прогноз/факт, уроки, действия на сегодня.`;
+      return `ЗАДАЧА: pendingDecisionFollowUps. Минимальное закрытие просроченного.`;
     default:
       return '';
   }

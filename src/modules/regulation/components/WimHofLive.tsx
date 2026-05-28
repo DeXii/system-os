@@ -19,7 +19,8 @@ export function WimHofLive({ onComplete }: Props) {
   const [round, setRound] = useState(1);
   const [breathCount, setBreathCount] = useState(0);
   const [retentionSec, setRetentionSec] = useState(0);
-  const [retentions, setRetentions] = useState<number[]>([]);
+  const retentionsRef = useRef<number[]>([]);
+  const sessionDoneRef = useRef(false);
   const [recoveryLeft, setRecoveryLeft] = useState(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -38,7 +39,8 @@ export function WimHofLive({ onComplete }: Props) {
     if (!confirmed) return;
     setRound(1);
     setBreathCount(0);
-    setRetentions([]);
+    retentionsRef.current = [];
+    sessionDoneRef.current = false;
     setPhase('power');
   };
 
@@ -48,6 +50,7 @@ export function WimHofLive({ onComplete }: Props) {
       setBreathCount(0);
       setRetentionSec(0);
       setPhase('retention');
+      clearTick();
       tickRef.current = setInterval(() => {
         setRetentionSec((s) => s + 1);
       }, 1000);
@@ -56,21 +59,30 @@ export function WimHofLive({ onComplete }: Props) {
     setBreathCount(next);
   };
 
+  const advanceAfterRecovery = (isLastRound: boolean) => {
+    clearTick();
+    if (isLastRound) {
+      void finishSession();
+      return;
+    }
+    const nextRound = retentionsRef.current.length + 1;
+    setRound(nextRound);
+    setBreathCount(0);
+    setPhase('power');
+  };
+
   const endRetention = () => {
     clearTick();
-    setRetentions((r) => [...r, retentionSec]);
+    const completed = retentionSec;
+    retentionsRef.current = [...retentionsRef.current, completed];
+    const isLastRound = retentionsRef.current.length >= preset.rounds;
     setRecoveryLeft(preset.recoverySec);
     setPhase('recovery');
     tickRef.current = setInterval(() => {
       setRecoveryLeft((s) => {
-        if (s <= 1) {
-          clearTick();
-          if (round >= preset.rounds) {
-            void finishSession();
-            return 0;
-          }
-          setRound((rnd) => rnd + 1);
-          setPhase('power');
+        if (s <= 0) return 0;
+        if (s === 1) {
+          advanceAfterRecovery(isLastRound);
           return 0;
         }
         return s - 1;
@@ -79,11 +91,14 @@ export function WimHofLive({ onComplete }: Props) {
   };
 
   const finishSession = async () => {
+    if (sessionDoneRef.current) return;
+    sessionDoneRef.current = true;
     clearTick();
     setPhase('done');
+    const list = retentionsRef.current;
     const avg =
-      retentions.length > 0
-        ? Math.round(retentions.reduce((a, b) => a + b, 0) / retentions.length)
+      list.length > 0
+        ? Math.round(list.reduce((a, b) => a + b, 0) / list.length)
         : retentionSec;
     const session: Omit<BreathingSession, 'id'> = {
       date: todayKey(),
@@ -103,7 +118,8 @@ export function WimHofLive({ onComplete }: Props) {
     setRound(1);
     setBreathCount(0);
     setRetentionSec(0);
-    setRetentions([]);
+    retentionsRef.current = [];
+    sessionDoneRef.current = false;
   };
 
   return (

@@ -1,9 +1,6 @@
 import { useState } from 'react';
-import {
-  getDirectorConfig,
-  getDirectorStatus,
-  testDirectorConnection,
-} from '@/core/ai/director-service';
+import { getDirectorConfig, testDirectorConnection } from '@/core/ai/director-service';
+import { useDirectorStatus } from '@/hooks/useDirectorStatus';
 import { getTasksByCategory, isDeepAnalysisTask, type TaskId } from '@/core/ai/director-tasks';
 import { useDirectorRunner } from './hooks/useDirectorRunner';
 import { ActionCards } from './components/ActionCards';
@@ -22,7 +19,7 @@ interface Props {
 }
 
 export function DirectorModule({ onOpenArchive }: Props) {
-  const status = getDirectorStatus();
+  const status = useDirectorStatus();
   const {
     loading,
     output,

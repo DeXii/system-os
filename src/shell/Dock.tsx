@@ -9,6 +9,7 @@ const MODULES: { id: ModuleId; label: string; abbr: string }[] = [
   { id: 'library', label: 'LIBRARY', abbr: 'LIB' },
   { id: 'integration', label: 'INTEGRATION', abbr: 'INT' },
   { id: 'director', label: 'DIRECTOR', abbr: 'DIR' },
+  { id: 'prompt', label: 'PROMPT', abbr: 'PRM' },
   { id: 'archive', label: 'ARCHIVE', abbr: 'ARC' },
 ];
 

@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import {
   getDirectorConfig,
-  getDirectorStatus,
   resetDirectorProxyToBuild,
   setDirectorConfig,
   testDirectorConnection,
   testProxyHealth,
   usesServerGroqKey,
 } from '@/core/ai/director-service';
+import { useDirectorStatus } from '@/hooks/useDirectorStatus';
 import { GlossaryZone } from '@/ui/glossary';
 
 const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
@@ -22,7 +22,7 @@ export function GroqSettingsPanel({ onOpenDirector }: Props) {
   const [healthMsg, setHealthMsg] = useState('');
   const [testing, setTesting] = useState(false);
   const [testingHealth, setTestingHealth] = useState(false);
-  const status = getDirectorStatus();
+  const status = useDirectorStatus();
   const serverKey = usesServerGroqKey();
 
   const builtInProxy = (import.meta.env.VITE_GROQ_PROXY_URL || '').trim().replace(/\/$/, '');

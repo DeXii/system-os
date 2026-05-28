@@ -13,7 +13,7 @@ export const ACTION_TYPES: AiAction['type'][] = [
 
 export function describeActionsForPrompt(allowed: AiAction['type'][]): string {
   if (!allowed.length) {
-    return 'Для этой задачи блок «Действия OS» не обязателен; если actions не нужны — передай [].';
+    return 'Для этой задачи блок «Действия OS» не обязателен; если actions не нужны — верни [] без комментариев в JSON.';
   }
   const all: Record<AiAction['type'], string> = {
     add_mission: 'add_mission — { title, taskKey?, priority?, stage? }',

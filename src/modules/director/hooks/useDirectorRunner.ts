@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { db } from '@/core/db';
-import {
-  applyAiActions,
-  getDirectorStatus,
-  runDirectorTask,
-} from '@/core/ai/director-service';
+import { applyAiActions, runDirectorTask } from '@/core/ai/director-service';
+import { useDirectorStatus } from '@/hooks/useDirectorStatus';
 import type { TaskId } from '@/core/ai/director-tasks';
 import { resolveScope } from '@/core/ai/director-tasks';
 import type { AiAction, AiInsight, ModuleId } from '@/core/domain/types';
@@ -20,7 +17,7 @@ export function useDirectorRunner({
   loadHistory = true,
   historyLimit = 20,
 }: UseDirectorRunnerOptions) {
-  const status = getDirectorStatus();
+  const status = useDirectorStatus();
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState('');
   const [insight, setInsight] = useState<AiInsight | null>(null);

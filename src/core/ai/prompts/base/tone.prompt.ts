@@ -1,1 +1,2 @@
-export const TONE_PROMPT = `СТИЛЬ: русский язык, кратко, markdown, военно-аналитический тон. Без эмодзи-коучинга и пустой мотивации.`;
+/** @deprecated Используйте buildCorePrompt из core.prompt.ts */
+export { TONE_PROMPT } from './core.prompt';

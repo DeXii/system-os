@@ -11,7 +11,6 @@ export const EQUIPMENT_FORBIDDEN = [
 export const EQUIPMENT_ALLOWED = ['pull-up bar', 'parallel bars', 'bodyweight'];
 
 export const EQUIPMENT_RULES = [
-  'Тренировки: только турник, брусья, bodyweight — exerciseId из foundation.allowedExerciseIds.',
-  'Запрещено рекомендовать штангу, гантели, зал, тренажёры.',
-  'HIFT/GPP = круг/сеты на турнике/брусьях, не зал и не CrossFit.',
+  'Только турник, брусья, bodyweight — allowedExerciseIds.',
+  'Запрещено: штанга, гантели, зал, тренажёры.',
 ];

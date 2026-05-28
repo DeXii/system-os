@@ -1,5 +1,5 @@
 import { TASK_KEYS } from '@/content/task-keys';
-import { db, todayKey, uid } from '../../db';
+import { db, tomorrowKey, todayKey, uid } from '../../db';
 import type { AiAction } from '../../domain/types';
 import { applyWorkoutPlanFromDirector } from '../../engines/workout-planner';
 import {
@@ -14,10 +14,8 @@ import { emitDomainEvent, emitKernel, emitOsRefresh } from '../../events/event-b
 import { completeByTaskKey } from './complete';
 
 function tomorrowFrom(action: AiAction): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
   if (action.payload.toDate) return String(action.payload.toDate);
-  return d.toISOString().split('T')[0];
+  return tomorrowKey();
 }
 
 export async function applyDirectorActions(actions: AiAction[]): Promise<void> {

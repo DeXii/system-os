@@ -50,6 +50,7 @@ const defaultModuleStatuses: Record<ModuleId, ModuleStatus> = {
   library: 'active',
   integration: 'active',
   director: 'active',
+  prompt: 'active',
   archive: 'active',
 };
 

@@ -15,7 +15,7 @@ const RULE_MAP: Record<ConstraintId, string[]> = {
   cognitive: COGNITIVE_RULES,
   communication: COMMUNICATION_RULES,
   scheduling: SCHEDULING_RULES,
-  doctrine: ['Сверяй рекомендации с doctrine.rules из context.'],
+  doctrine: [],
 };
 
 export function renderConstraintBlock(ids: ConstraintId[]): string {

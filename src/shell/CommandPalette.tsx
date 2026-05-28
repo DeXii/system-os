@@ -94,6 +94,7 @@ export function useCommandPaletteNavigation(
     { id: 'inf', label: 'Открыть INFLUENCE', run: () => setModule('influence') },
     { id: 'lib', label: 'Открыть LIBRARY', run: () => setModule('library') },
     { id: 'dir', label: 'Открыть DIRECTOR', run: () => setModule('director') },
+    { id: 'prm', label: 'Открыть PROMPT', run: () => setModule('prompt') },
     { id: 'arc', label: 'Открыть ARCHIVE', run: () => setModule('archive') },
     ...extras,
   ];

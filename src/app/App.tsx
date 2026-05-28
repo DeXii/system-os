@@ -14,23 +14,10 @@ import { AuthGate } from '@/shell/AuthGate';
 import { BootScreen } from '@/shell/BootScreen';
 import { Onboarding } from '@/shell/Onboarding';
 import { ErrorBoundary } from './ErrorBoundary';
+import { resetLocalDatabaseOnly } from '@/core/data/factory-reset';
 import { OsLayout } from './OsLayout';
 
 type Phase = 'boot' | 'onboarding' | 'os';
-
-const DB_NAME = 'ayanakoji_os';
-
-async function resetLocalDatabase(): Promise<void> {
-  detachCloudSyncListeners();
-  db.close();
-  await new Promise<void>((resolve, reject) => {
-    const req = indexedDB.deleteDatabase(DB_NAME);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-    req.onblocked = () => resolve();
-  });
-  window.location.reload();
-}
 
 function DbErrorScreen({ message, onReset }: { message: string; onReset: () => void }) {
   return (
@@ -104,7 +91,7 @@ function OsApp({ user }: { user: User }) {
   }, [onboarded]);
 
   if (dbError) {
-    return <DbErrorScreen message={dbError} onReset={() => void resetLocalDatabase()} />;
+    return <DbErrorScreen message={dbError} onReset={() => void resetLocalDatabaseOnly()} />;
   }
 
   if (!dbReady) {

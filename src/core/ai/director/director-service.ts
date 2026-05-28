@@ -14,7 +14,9 @@ import {
 import type { WorkoutContextOptions } from '../context-builder';
 import { todayKey } from '../../db';
 import { buildDirectorPromptBundle, processDirectorResponse } from './director-router';
+import { setLastDirectorPrompt } from '@/stores/director-prompt-store';
 
+export { buildDirectorPromptBundle } from './director-router';
 export { testProxyHealth } from '../groq-client';
 export type { TaskId } from '../director-tasks';
 export type { WorkoutContextOptions } from '../context-builder';
@@ -27,6 +29,17 @@ const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
 
 const DEFAULT_PROXY = (import.meta.env.VITE_GROQ_PROXY_URL || '').trim().replace(/\/$/, '');
 const DEFAULT_PROXY_TOKEN = (import.meta.env.VITE_PROXY_TOKEN || '').trim();
+
+const directorStatusListeners = new Set<() => void>();
+
+export function subscribeDirectorStatus(listener: () => void): () => void {
+  directorStatusListeners.add(listener);
+  return () => directorStatusListeners.delete(listener);
+}
+
+function notifyDirectorStatus(): void {
+  directorStatusListeners.forEach((fn) => fn());
+}
 
 export function usesServerGroqKey(): boolean {
   return import.meta.env.PROD || !!DEFAULT_PROXY;
@@ -47,11 +60,14 @@ export function setDirectorConfig(cfg: Partial<DirectorConfig>): void {
   if (cfg.proxyUrl != null) localStorage.setItem(LS_PROXY, cfg.proxyUrl.replace(/\/$/, ''));
   if (cfg.proxyToken != null) localStorage.setItem(LS_TOKEN, cfg.proxyToken);
   if (cfg.model != null) localStorage.setItem(LS_MODEL, cfg.model);
+  notifyDirectorStatus();
 }
 
 export function resetDirectorProxyToBuild(): DirectorConfig {
   localStorage.removeItem(LS_PROXY);
-  return getDirectorConfig();
+  const next = getDirectorConfig();
+  notifyDirectorStatus();
+  return next;
 }
 
 export function validateDirectorConfig(cfg: DirectorConfig): { ok: boolean; error?: string } {
@@ -97,6 +113,19 @@ export async function runDirectorTask(
   try {
     options?.onProgress?.(`Сбор контекста (${lookbackDays} дн.)...`);
     const bundle = await buildDirectorPromptBundle(taskId, options);
+
+    setLastDirectorPrompt({
+      taskId,
+      scope,
+      lookbackDays,
+      system: bundle.system,
+      user: bundle.user,
+      contextJson: bundle.contextJson,
+      contextJsonLength: bundle.contextJson.length,
+      workoutContext: options?.workoutContext,
+      createdAt: new Date().toISOString(),
+      source: 'run',
+    });
 
     options?.onProgress?.('Запрос к Groq...');
     const result = await callGroq(bundle.system, bundle.user, cfg, {

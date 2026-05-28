@@ -1,1 +1,2 @@
-export const DOCTRINE_PROMPT = `ДОКТРИНА: учитывай doctrine.rules и operatorMode из context — они задают приоритет дня.`;
+/** @deprecated Используйте buildCorePrompt из core.prompt.ts */
+export { DOCTRINE_PROMPT } from './core.prompt';

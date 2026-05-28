@@ -408,10 +408,18 @@ function inferTaskKeyFromLabel(label: string, stage: string): string {
   return `${stage}.protocol.${label.slice(0, 20).replace(/\s+/g, '_')}`;
 }
 
+/** YYYY-MM-DD in the operator's local timezone (not UTC). */
+export function toLocalDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export function dateKeyDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
-  return d.toISOString().split('T')[0];
+  return toLocalDateKey(d);
 }
 
 export const db = new AyanakojiDB();
@@ -421,7 +429,7 @@ export function uid(): string {
 }
 
 export function todayKey(d = new Date()): string {
-  return d.toISOString().split('T')[0];
+  return toLocalDateKey(d);
 }
 
 export function weekdayIndex(d = new Date()): 0 | 1 | 2 | 3 | 4 | 5 | 6 {

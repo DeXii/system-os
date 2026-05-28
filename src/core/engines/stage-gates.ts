@@ -9,6 +9,7 @@ export function getModuleStatuses(readiness: ReadinessScores): Record<ModuleId, 
   return {
     command: 'active',
     director: 'active',
+    prompt: 'active',
     archive: 'active',
     integration: 'active',
     foundation: foundationWeak ? 'degraded' : 'active',

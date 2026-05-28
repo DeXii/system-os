@@ -3,12 +3,11 @@ import type { PlanningTemplateParams } from '../../director/director-types';
 export function renderPlanningTemplate(params: PlanningTemplateParams): string {
   switch (params.kind) {
     case 'reschedule':
-      return `ЗАДАЧА: перенос невыполненных слотов (move_slot, taskKey из schedule.todayQueue).`;
+      return `ЗАДАЧА: перенос слотов (move_slot). Минимум переносов — только критичное.`;
     case 'weekSchedule':
-      return `ЗАДАЧА: порядок недели Пн–Вс (3–4 тренировочных дня, кардио опционально).`;
+      return `ЗАДАЧА: порядок недели. 3–4 тренировочных дня; без перегруза.`;
     case 'free':
-      return `ЗАДАЧА: ответ на запрос оператора с полным context.
-Тренировки — только allowedExerciseIds; при плане — set_workout_plan.`;
+      return `ЗАДАЧА: запрос оператора. Почему ответ такой; минимальный шаг; тренировки — allowedExerciseIds. Не предлагать новые сущности OS без запроса.`;
     default:
       return '';
   }

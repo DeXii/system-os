@@ -13,6 +13,7 @@ import { InfluenceModule } from '@/modules/influence/InfluenceModule';
 import { IntegrationModule } from '@/modules/integration/IntegrationModule';
 import { DirectorModule } from '@/modules/director/DirectorModule';
 import { ArchiveModule } from '@/modules/archive/ArchiveModule';
+import { PromptModule } from '@/modules/prompt/PromptModule';
 import { useOsState } from '@/hooks/useOsState';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { runDirectorTask } from '@/core/ai/director-service';
@@ -148,6 +149,8 @@ export function OsLayout() {
         );
       case 'director':
         return <DirectorModule onOpenArchive={() => setModule('archive')} />;
+      case 'prompt':
+        return <PromptModule />;
       case 'archive':
         return (
           <ArchiveModule

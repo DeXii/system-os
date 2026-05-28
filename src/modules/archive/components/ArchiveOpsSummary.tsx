@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { db } from '@/core/db';
-import { getDirectorConfig, getDirectorStatus } from '@/core/ai/director-service';
+import { getDirectorConfig } from '@/core/ai/director-service';
+import { useDirectorStatus } from '@/hooks/useDirectorStatus';
 import { getDataSnapshotStats } from '@/core/data/export-import';
 import { subscribeKernel, subscribeOsRefresh } from '@/core/events/event-bus';
 
@@ -15,7 +16,7 @@ function maskProxy(url: string): string {
 }
 
 export function ArchiveOpsSummary() {
-  const status = getDirectorStatus();
+  const status = useDirectorStatus();
   const cfg = getDirectorConfig();
   const [stats, setStats] = useState<Record<string, number> | null>(null);
   const [lastInsight, setLastInsight] = useState<string | null>(null);

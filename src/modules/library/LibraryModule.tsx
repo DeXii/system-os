@@ -3,11 +3,8 @@ import { BOOK_LEVEL_GROUPS } from '@/content/os-books-catalog';
 import { db, uid } from '@/core/db';
 import { afterBookMarkedRead } from '@/core/engines/os-kernel';
 import { ensureLibrarySeeded, getReadingProgressByLevel } from '@/core/engines/library-books';
-import {
-  applyAiActions,
-  getDirectorStatus,
-  runDirectorTask,
-} from '@/core/ai/director-service';
+import { applyAiActions, runDirectorTask } from '@/core/ai/director-service';
+import { useDirectorStatus } from '@/hooks/useDirectorStatus';
 import type { BookLevel, BookReadStatus, LibraryBook } from '@/core/domain/types';
 import { ModuleShell } from '@/ui/shell/ModuleShell';
 import { TerminalBlock } from '@/ui/components/TerminalBlock';
@@ -35,6 +32,7 @@ export function LibraryModule({ onRefresh }: Props) {
   });
   const [directorOut, setDirectorOut] = useState('');
   const [loadingDirector, setLoadingDirector] = useState(false);
+  const directorStatus = useDirectorStatus();
 
   const load = useCallback(async () => {
     await ensureLibrarySeeded();
@@ -82,8 +80,7 @@ export function LibraryModule({ onRefresh }: Props) {
   };
 
   const libraryCoach = async () => {
-    const status = getDirectorStatus();
-    if (status !== 'online') {
+    if (directorStatus !== 'online') {
       setDirectorOut('DIRECTOR offline — настройте в ARCHIVE');
       return;
     }

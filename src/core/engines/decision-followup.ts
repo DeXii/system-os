@@ -1,4 +1,4 @@
-import { db, dateKeyDaysAgo, todayKey } from '../db';
+import { db, dateKeyDaysAgo, todayKey, toLocalDateKey } from '../db';
 import type { DecisionLogEntry } from '../domain/types';
 
 const DEFAULT_FOLLOWUP_DAYS = 7;
@@ -6,7 +6,7 @@ const DEFAULT_FOLLOWUP_DAYS = 7;
 export function computeFollowUpDueDate(fromDate = todayKey()): string {
   const d = new Date(fromDate + 'T12:00:00');
   d.setDate(d.getDate() + DEFAULT_FOLLOWUP_DAYS);
-  return d.toISOString().split('T')[0];
+  return toLocalDateKey(d);
 }
 
 export async function getPendingDecisionFollowUps(): Promise<DecisionLogEntry[]> {

@@ -1,2 +1,2 @@
-export const SAFETY_PROMPT = `БЕЗОПАСНОСТЬ:
-- Если поля нет в context — пиши «нет данных», не выдумывай метрики.`;
+/** @deprecated Используйте buildCorePrompt из core.prompt.ts */
+export { SAFETY_PROMPT } from './core.prompt';
