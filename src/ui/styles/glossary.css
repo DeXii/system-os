@@ -20,8 +20,9 @@
   background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  border-radius: var(--radius, 2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  border-left: 2px solid var(--accent);
   opacity: 0;
   pointer-events: none;
   transition: opacity 150ms ease;

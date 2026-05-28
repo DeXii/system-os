@@ -68,6 +68,14 @@
 
 Расширенный `InfluenceEntry`; legacy `ethicsChecked` не влияет на readiness.
 
+## Dexie v12 / Export v9
+
+Таблицы: `contacts`, `operations`, `operatorDoctrine`, `triggerLogs`, `studySessions`.
+
+Kernel: `afterContactSave`, `afterOperationSave`, `afterTriggerLogComplete`, `afterStudySessionComplete`; `afterDecisionLogComplete` ставит `followUpDueDate` (+7d).
+
+Авто-миссии: `mind.decision.followup`, `mind.study` (при простое).
+
 ## INTEGRATION
 
 - Пирамида L1–L3, synergy bottleneck, PDP, weekly audit

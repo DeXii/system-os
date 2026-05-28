@@ -52,23 +52,30 @@ export async function getMindOpsSummary(): Promise<{
   reflections7d: number;
   scenarios7d: number;
   decisions7d: number;
+  studySessions7d: number;
+  decisionClosurePct14d: number;
   streak: number;
   readingProgress: Awaited<ReturnType<typeof getReadingProgressByLevel>>;
   weeklyReading: Awaited<ReturnType<typeof getWeeklyReadingStatus>>;
 }> {
   const since = dateKeyDaysAgo(6);
-  const [chessSessions7d, reflections7d, scenarios7d, decisions7d] = await Promise.all([
-    db.chessGoSessions.where('date').aboveOrEqual(since).count(),
-    db.reflections.where('date').aboveOrEqual(since).count(),
-    getScenarioCount7d(),
-    db.decisionLogs.where('date').aboveOrEqual(since).count(),
-  ]);
+  const [chessSessions7d, reflections7d, scenarios7d, decisions7d, studySessions7d] =
+    await Promise.all([
+      db.chessGoSessions.where('date').aboveOrEqual(since).count(),
+      db.reflections.where('date').aboveOrEqual(since).count(),
+      getScenarioCount7d(),
+      db.decisionLogs.where('date').aboveOrEqual(since).count(),
+      db.studySessions.where('date').aboveOrEqual(since).count(),
+    ]);
+  const { getDecisionClosureRate14d } = await import('./decision-followup');
   return {
     chessSessions7d,
     chessMinutes7d: await getChessMinutes7d(),
     reflections7d,
     scenarios7d,
     decisions7d,
+    studySessions7d,
+    decisionClosurePct14d: await getDecisionClosureRate14d(),
     streak: await getMindStreak(),
     readingProgress: await getReadingProgressByLevel(),
     weeklyReading: await getWeeklyReadingStatus(),

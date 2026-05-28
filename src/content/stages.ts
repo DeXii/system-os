@@ -38,9 +38,9 @@ export const STAGES: StageInfo[] = [
     id: 'influence',
     number: 4,
     name: 'Тактика влияния',
-    goal: 'Этичные механизмы социального воздействия.',
-    methods: 'MI; Nudge Theory; эмпатия; Theory of Mind.',
-    result: 'Влияние с внутренней гармонией и этикой.',
+    goal: 'Тактика влияния и контроль социальных ситуаций.',
+    methods: 'MI; Nudge Theory; Theory of Mind; досье; операции.',
+    result: 'Тактика влияния и контроль ситуации.',
   },
 ];
 

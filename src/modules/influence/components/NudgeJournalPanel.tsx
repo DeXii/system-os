@@ -3,8 +3,6 @@ import { todayKey } from '@/core/db';
 import { afterNudgeEntryComplete } from '@/core/engines/os-kernel';
 import { NUDGE_TYPES } from '@/content/influence-protocols';
 import type { NudgeType } from '@/core/domain/types';
-import { GlossaryZone } from '@/ui/glossary';
-
 interface Props {
   onSaved: () => void;
 }
@@ -32,12 +30,6 @@ export function NudgeJournalPanel({ onSaved }: Props) {
   return (
     <div className="panel">
       <div className="panel-title">Nudge Journal</div>
-      <GlossaryZone>
-        <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
-          Nudge journal — мягкий толчок в контексте; оператор проектирует выбор без давления (MI и
-          ethics protocol рядом).
-        </p>
-      </GlossaryZone>
       <div className="form-row">
         <label className="label">Контекст</label>
         <textarea

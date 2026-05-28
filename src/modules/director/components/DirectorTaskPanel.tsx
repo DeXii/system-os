@@ -3,6 +3,7 @@ import type { DirectorTaskMeta } from '@/core/ai/director-tasks';
 import type { TaskId } from '@/core/ai/director-tasks';
 import type { ModuleId } from '@/core/domain/types';
 import { useDirectorRunner } from '../hooks/useDirectorRunner';
+import { TerminalBlock } from '@/ui/components/TerminalBlock';
 import { ActionCards } from './ActionCards';
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
   showHistory?: boolean;
   freeInputPlaceholder?: string;
   applyLabel?: string;
+  hideHeader?: boolean;
 }
 
 export function DirectorTaskPanel({
@@ -27,6 +29,7 @@ export function DirectorTaskPanel({
   showHistory = !compact,
   freeInputPlaceholder = 'Команда оператора...',
   applyLabel,
+  hideHeader = false,
 }: Props) {
   const [freeInput, setFreeInput] = useState('');
   const {
@@ -59,16 +62,14 @@ export function DirectorTaskPanel({
 
   if (compact || variant === 'sidebar') {
     return (
-      <div className="director-panel">
-        <div className="director-header">
-          <span className={`director-status ${status}`}>DIRECTOR · {status.toUpperCase()}</span>
-        </div>
+      <>
+        {!hideHeader && (
+          <div className="director-header">
+            <span className={`director-status ${status}`}>{status.toUpperCase()}</span>
+          </div>
+        )}
         <div className="director-body">
-          {output && (
-            <div className="director-output">
-              <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{output}</pre>
-            </div>
-          )}
+          {output && <TerminalBlock>{output}</TerminalBlock>}
           {insight && !loading && insight.actions.length > 0 && (
             <ActionCards
               actions={insight.actions}
@@ -106,17 +107,17 @@ export function DirectorTaskPanel({
             </button>
           ))}
         </div>
-      </div>
+      </>
     );
   }
 
   return (
     <div className="panel">
       <div className="panel-title">{title}</div>
-      <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
-        Статус: <span className={`director-status ${status}`}>{status.toUpperCase()}</span>
-        {status !== 'online' && ' · Настройте Groq во вкладке ARCHIVE'}
-      </p>
+      <div className="mb-sm text-xs text-dim">
+        <span className={`director-status ${status}`}>{status.toUpperCase()}</span>
+        {status !== 'online' && ' · GROQ → ARCHIVE'}
+      </div>
 
       <div className="form-row" style={{ marginBottom: 8 }}>
         <input
@@ -161,8 +162,8 @@ export function DirectorTaskPanel({
       </div>
 
       {output && (
-        <div className="director-output" style={{ marginBottom: 8 }}>
-          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12 }}>{output}</pre>
+        <div className="mb-sm">
+          <TerminalBlock>{output}</TerminalBlock>
         </div>
       )}
 

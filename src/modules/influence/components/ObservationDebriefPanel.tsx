@@ -3,8 +3,6 @@ import { todayKey } from '@/core/db';
 import { afterObservationComplete } from '@/core/engines/os-kernel';
 import { OBSERVATION_TYPES } from '@/content/influence-protocols';
 import type { InfluenceEntryType } from '@/core/domain/types';
-import { GlossaryZone } from '@/ui/glossary';
-
 interface Props {
   onSaved: () => void;
 }
@@ -31,12 +29,6 @@ export function ObservationDebriefPanel({ onSaved }: Props) {
   return (
     <div className="panel">
       <div className="panel-title">Observation / Debrief</div>
-      <GlossaryZone>
-        <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
-          Observation — факты без советов; observation debrief — разбор увиденного. Отдельно от MI и
-          nudge.
-        </p>
-      </GlossaryZone>
       <div className="form-row">
         <label className="label">Тип</label>
         <select

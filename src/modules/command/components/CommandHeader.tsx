@@ -16,9 +16,9 @@ export function CommandHeader({ profile, readiness, dayReport }: Props) {
         <div>
           <div className="panel-title">COMMAND CENTER</div>
           {profile && (
-            <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-              Этап: <strong style={{ color: 'var(--accent)' }}>{STAGE_LABELS[profile.currentStage]}</strong>
-            </p>
+            <div className="text-xs text-dim">
+              STG: <strong style={{ color: 'var(--accent)' }}>{STAGE_LABELS[profile.currentStage]}</strong>
+            </div>
           )}
         </div>
         <div style={{ marginLeft: 'auto', textAlign: 'right' }}>

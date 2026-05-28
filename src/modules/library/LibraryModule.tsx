@@ -9,6 +9,8 @@ import {
   runDirectorTask,
 } from '@/core/ai/director-service';
 import type { BookLevel, BookReadStatus, LibraryBook } from '@/core/domain/types';
+import { ModuleShell } from '@/ui/shell/ModuleShell';
+import { TerminalBlock } from '@/ui/components/TerminalBlock';
 
 interface Props {
   onRefresh: () => void;
@@ -96,7 +98,7 @@ export function LibraryModule({ onRefresh }: Props) {
 
   return (
     <div>
-      <h1 style={{ fontFamily: 'var(--mono)', marginBottom: '1rem' }}>LIBRARY — Библиотека OS</h1>
+      <ModuleShell title="LIBRARY" subtitle="READING OPS · 4 LEVELS" />
 
       {progress && (
         <div className="panel">
@@ -141,9 +143,7 @@ export function LibraryModule({ onRefresh }: Props) {
             DIRECTOR: книга недели
           </button>
         </div>
-        {directorOut && (
-          <pre style={{ fontSize: 12, whiteSpace: 'pre-wrap', marginBottom: 8 }}>{directorOut}</pre>
-        )}
+        {directorOut && <TerminalBlock>{directorOut}</TerminalBlock>}
       </div>
 
       {BOOK_LEVEL_GROUPS.map((group) => {

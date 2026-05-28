@@ -48,6 +48,8 @@ export function MindOpsSummary({ onRefresh }: Props) {
         <div>Рефлексии: {stats.reflections7d}</div>
         <div>Сценарии: {stats.scenarios7d}</div>
         <div>Decision logs: {stats.decisions7d}</div>
+        <div>Study: {stats.studySessions7d}</div>
+        <div>Closure 14d: {stats.decisionClosurePct14d}%</div>
         <div>Streak: {stats.streak} дн</div>
         <div>
           Чтение L3: {l3.read}/{l3.total}

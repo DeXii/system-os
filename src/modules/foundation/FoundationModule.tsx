@@ -17,7 +17,7 @@ import { StraightSetsLiveMode } from './components/StraightSetsLiveMode';
 import { FoundationDirectorPanel } from './components/FoundationDirectorPanel';
 import { WorkoutHubPanel } from './components/WorkoutHubPanel';
 import { StageBooksWidget } from '@/modules/library/components/StageBooksWidget';
-import { GlossaryZone } from '@/ui/glossary';
+import { ModuleShell } from '@/ui/shell/ModuleShell';
 
 interface Props {
   moduleStatus: ModuleStatus;
@@ -95,18 +95,17 @@ export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
 
   return (
     <div>
-      <h1 style={{ fontFamily: 'var(--mono)', marginBottom: '1rem' }}>FOUNDATION — Этап 1</h1>
-      <GlossaryZone>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
-          Foundation: HIFT утром, GPP вечером, зарядка, растяжка, кардио. Уровни и прогрессия по логам 7 дней.
-        </p>
-      </GlossaryZone>
+      <ModuleShell
+        title="FOUNDATION"
+        subtitle="STG-1 · PHYSICAL BASE"
+        chips={
+          <>
+            {degraded && <span className="tag warn">DEGRADED</span>}
+            {queueHint && <span className="tag">{queueHint}</span>}
+          </>
+        }
+      />
       {degraded && <div className="alert-banner">{degraded}</div>}
-      {queueHint && (
-        <p style={{ fontSize: 12, color: 'var(--accent)', marginBottom: '0.75rem' }}>
-          Сегодня в очереди: {queueHint}
-        </p>
-      )}
 
       <StageBooksWidget level={1} onOpenLibrary={onOpenLibrary} />
 
@@ -137,11 +136,6 @@ export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
 
       <div className="panel">
         <div className="panel-title">Recovery Ops</div>
-        <GlossaryZone>
-          <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8 }}>
-            Recovery ops — сон и базовое recovery между тренировками foundation.
-          </p>
-        </GlossaryZone>
         <div className="form-row">
           <label className="label">Сон (ч)</label>
           <input

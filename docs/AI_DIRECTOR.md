@@ -14,60 +14,74 @@
 3. Local dev: `npx wrangler dev` → Proxy URL `http://localhost:8787`
 4. In app: **ARCHIVE** → Groq settings → Key + Proxy URL → **Проверить связь**
 
-## Task IDs (registry: `src/core/ai/director-tasks.ts`)
+## Task IDs
 
-### Core (12)
+UI metadata: `src/core/ai/director-tasks.ts`  
+Prompt routing: `src/core/ai/prompts/registry/task-registry.ts`
 
-| taskId | Purpose | Default scope |
-|--------|---------|---------------|
-| morningBriefing | Утренний протокол и миссии | command |
-| eveningDebrief | Вечерний разбор | command |
-| weeklyAudit | Системный аудит | integration |
-| pdpReview | Разбор PDP | integration |
-| stageGateReview | Gate / demotion | integration |
-| foundationCoach | Bar HIFT / recovery | foundation |
-| planWorkout | План тренировки + `set_workout_plan` | foundation |
-| regulationCoach | HRV, дыхание, PST | regulation |
-| mindCoach | EF, шахматы, метапознание | mind |
-| influenceCoach | Тактика влияния | influence |
-| libraryCoach | Книга по этапу | library |
-| freeCommand | Свободный запрос | full |
+## Prompt architecture (v2)
 
-### Extended (3)
+Pipeline:
 
-| taskId | Purpose |
-|--------|---------|
-| rescheduleDay | Перенос слотов |
-| buildWeekSchedule | График недели |
-| tacticalDebrief | Разбор решений |
+```text
+BASE + RULES + TEMPLATE + OUTPUT FORMAT + ALLOWED ACTIONS  → system
+CONTEXT JSON (+ operator message)                          → user
+```
+
+| Layer | Path |
+|-------|------|
+| Base | `prompts/base/*.prompt.ts` |
+| Rules | `prompts/rules/*.rules.ts` |
+| Templates | `prompts/templates/*.template.ts` |
+| Registry | `prompts/registry/task-registry.ts` |
+| Assembly | `prompts/builders/build-system-prompt.ts` |
+| Runtime | `director/director-router.ts`, `director/director-service.ts` |
+
+Persona: analytical style inspired by **Аянокоджи Киётака** — cold strategy, tactical influence, mask and information discipline in INFLUENCE tasks.
+
+Context includes `constraints` (flags, `aiMode`) from `constraints-builder.ts`.
+
+## Response contract
+
+```markdown
+## Вывод
+## Решение
+## Действия OS
+```json
+[]
+```
+## Риски   (optional)
+```
 
 ## Action Cards
-
-DIRECTOR outputs `## Действия OS` with JSON. UI shows **Action Cards** with per-action checkboxes.
 
 | type | Effect |
 |------|--------|
 | add_mission | Новая миссия |
 | add_protocol | Пункт протокола |
 | set_workout_plan | План в FOUNDATION (`allowedExerciseIds` only) |
+| set_cardio_session_plan | Кардио-сессия |
 | move_slot | Перенос в графике |
 | complete_slot | Завершить слот |
 | add_schedule_slot | Новый слот дня |
 | log_note | Заметка в dailyLog |
 
-Apply via **Применить выбранные** or **Применить все**.
+Post-parse validation: `prompts/validators/validate-actions.ts` (Zod + allowedActions + equipment).
 
-## Architecture
+## Add a task
 
-- **Hub**: модуль DIRECTOR (Dock) — все 12 core tasks + история
-- **ARCHIVE**: Groq config, export/import, полный архив insights — см. [modules/archive.md](modules/archive.md)
-- **Sidebar**: `DirectorPanel` — quick tasks по активному модулю
-- **Per-module**: `DirectorTaskPanel` в FOUNDATION, REGULATION, MIND, INFLUENCE, INTEGRATION
+1. Entry in `director-tasks.ts`
+2. Entry in `task-registry.ts` (templateId, outputFormat, allowedActions, constraintIds)
+3. Extend template if needed
 
-## Master prompt
+## Tests
 
-See `src/core/ai/prompts/director-master.ts` — hierarchy, ethics, bar-only FOUNDATION, all action types.
+```bash
+npm test
+```
+
+See `src/core/ai/prompts/tests/`.
 
 ## Context
 
-`buildDirectorContext(scope)` — при `scope !== full` отдаёт базовый слой + блок текущего модуля (command всегда full).
+`buildDirectorContext(scope)` — scoped payload + `constraints` / `aiMode`. Full JSON in user message only.

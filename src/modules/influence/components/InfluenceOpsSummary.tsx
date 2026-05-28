@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react';
 import { TASK_KEYS } from '@/content/task-keys';
 import { getInfluenceOpsSummary } from '@/core/engines/influence-metrics';
 import { findSlotByTaskKey } from '@/core/engines/week-schedule';
-import { GlossaryZone } from '@/ui/glossary';
-
 interface Props {
   onRefresh?: () => void;
 }
@@ -40,16 +38,10 @@ export function InfluenceOpsSummary({ onRefresh }: Props) {
   return (
     <div className="panel">
       <div className="panel-title">INFLUENCE Ops · 7 дней · Тактика класса</div>
-      <GlossaryZone>
-        <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
-          Influence: MI (motivational interviewing), nudge, ethics protocol, bias log и observation
-          debrief за 7 дней.
-        </p>
-      </GlossaryZone>
       {hints.length > 0 && (
-        <p style={{ fontSize: 12, color: 'var(--accent)', marginBottom: 8 }}>
+        <div className="text-xs mb-sm" style={{ color: 'var(--accent)' }}>
           {hints.join(' · ')}
-        </p>
+        </div>
       )}
       <div className="grid-2" style={{ fontSize: 12, fontFamily: 'var(--mono)' }}>
         <div>MI (OARS): {stats.miCount7d}</div>

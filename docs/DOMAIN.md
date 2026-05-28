@@ -42,6 +42,19 @@ On advance: `unlockedStages` grows; old stages → maintenance. On demote: `curr
 - `OperatorCalibration`, `WorkoutPlan`, `SetLog`, `BftEvent`
 - Integration via `os-kernel` — see [OS_INTEGRATION.md](OS_INTEGRATION.md)
 
+## INFLUENCE v4 — Contacts & Operations
+
+- `ContactProfile` — досье (мотивы, ставки, disclosureNotes)
+- `Operation` — многоходовая кампания (phase, deadline, contactIds)
+- `InfluenceEntry` — optional `contactId`, `maskUsed`, `infoDisclosed`, `infoHeld`
+
+## MIND / REGULATION extensions
+
+- `DecisionLogEntry` — `followUpDueDate`, `followUpDone`, `actualOutcome`
+- `TriggerLog` — триггеры + maskScore 1–5
+- `StudySession` — учёба вне chess
+- `OperatorDoctrine` — singleton `id: doctrine`, `rules[]`
+
 ## taskKey
 
-Stable ID linking mission, protocol, and schedule slot (e.g. `foundation.workout`, `regulation.hrv`).
+Stable ID linking mission, protocol, and schedule slot (e.g. `foundation.workout`, `regulation.hrv`, `influence.contact_prep`, `mind.decision.followup`).

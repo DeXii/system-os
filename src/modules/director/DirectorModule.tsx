@@ -7,7 +7,8 @@ import {
 import { getTasksByCategory, isDeepAnalysisTask, type TaskId } from '@/core/ai/director-tasks';
 import { useDirectorRunner } from './hooks/useDirectorRunner';
 import { ActionCards } from './components/ActionCards';
-import { GlossaryZone } from '@/ui/glossary';
+import { ModuleShell } from '@/ui/shell/ModuleShell';
+import { TerminalBlock } from '@/ui/components/TerminalBlock';
 
 const CATEGORY_LABELS: Record<string, string> = {
   command: 'Command',
@@ -46,18 +47,16 @@ export function DirectorModule({ onOpenArchive }: Props) {
 
   return (
     <div>
-      <h1 style={{ fontFamily: 'var(--mono)', marginBottom: '1rem' }}>DIRECTOR</h1>
-      <GlossaryZone>
-        <p style={{ color: 'var(--text-dim)', marginBottom: '1rem', fontSize: 13 }}>
-          DIRECTOR на Groq: briefing и debrief, weekly audit, insight и action card по mission,
-          protocol и readiness четырёх этапов.
-        </p>
-      </GlossaryZone>
+      <ModuleShell
+        title="DIRECTOR"
+        subtitle="GROQ AI OPS"
+        chips={<span className={`director-status ${status}`}>{status.toUpperCase()}</span>}
+      />
 
-      <div className="panel" style={{ marginBottom: '1rem' }}>
-        <div className="panel-title">Groq / Статус</div>
-        <p style={{ fontSize: 12, marginBottom: 8 }}>
-          Статус: <span className={`director-status ${status}`}>{status.toUpperCase()}</span>
+      <div className="panel">
+        <div className="panel-title">Groq / Status</div>
+        <div className="mb-sm text-xs">
+          <span className={`director-status ${status}`}>{status.toUpperCase()}</span>
           {status !== 'online' && (
             <>
               {' '}
@@ -71,19 +70,17 @@ export function DirectorModule({ onOpenArchive }: Props) {
               )}
             </>
           )}
-        </p>
+        </div>
         {cfg.proxyUrl && (
-          <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
+          <div className="text-xs text-dim mb-sm">
             Proxy: {cfg.proxyUrl.slice(0, 48)}
             {cfg.proxyUrl.length > 48 ? '…' : ''}
-          </p>
+          </div>
         )}
         <button type="button" className="btn btn-sm" disabled={loading} onClick={testConnection}>
           Проверить связь
         </button>
-        {testMsg && (
-          <p style={{ fontSize: 11, marginTop: 8, color: 'var(--text-dim)' }}>{testMsg}</p>
-        )}
+        {testMsg && <div className="text-xs text-dim" style={{ marginTop: 8 }}>{testMsg}</div>}
       </div>
 
       {(['command', 'system', 'coach', 'utility'] as const).map((cat) => {
@@ -110,12 +107,9 @@ export function DirectorModule({ onOpenArchive }: Props) {
         );
       })}
 
-      <div className="director-hub-section" style={{ marginTop: '1rem' }}>
-        <h3>Глубокий анализ</h3>
-        <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
-          Полный разбор за 14 или 30 дней (все записи в окне). Обычные кнопки выше — только последние 7
-          дней.
-        </p>
+      <details className="os-accordion">
+        <summary>DEEP ANALYSIS · 14–30D</summary>
+        <div className="os-accordion-body">
         <div className="director-hub-grid">
           {categories.system
             .filter((t) => t.core && isDeepAnalysisTask(t.id as TaskId))
@@ -132,14 +126,13 @@ export function DirectorModule({ onOpenArchive }: Props) {
               </button>
             ))}
         </div>
-      </div>
+        </div>
+      </details>
 
       {output && (
-        <div className="panel" style={{ marginBottom: '1rem' }}>
-          <div className="panel-title">Ответ DIRECTOR</div>
-          <div className="director-output">
-            <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{output}</pre>
-          </div>
+        <div className="panel">
+          <div className="panel-title">DIRECTOR OUTPUT</div>
+          <TerminalBlock>{output}</TerminalBlock>
           {insight && !loading && insight.actions.length > 0 && (
             <ActionCards actions={insight.actions} loading={loading} onApply={applyActions} />
           )}

@@ -1,24 +1,31 @@
 :root {
-  --bg-deep: #06090d;
-  --bg-panel: #0c1219;
-  --bg-elevated: #111a24;
-  --border: #1e2d3d;
-  --border-bright: #2a4058;
-  --text: #c8d4e0;
-  --text-dim: #6b7f94;
-  --text-bright: #e8f0f8;
-  --accent: #3d9eff;
-  --accent-dim: #1a5a8a;
-  --success: #3dba7a;
-  --warn: #e6a23c;
-  --danger: #e85d5d;
-  --mono: 'IBM Plex Mono', monospace;
+  --bg-deep: #000000;
+  --bg-panel: #0a0a0c;
+  --bg-elevated: #12141a;
+  --border: #1e2128;
+  --border-bright: #2a3038;
+  --text: #8a929e;
+  --text-dim: #5c636d;
+  --text-bright: #e8eaed;
+  --text-hud: #f0f2f5;
+  --accent: #4da3ff;
+  --accent-dim: #1a4a7a;
+  --accent-glow: rgba(77, 163, 255, 0.25);
+  --success: #3dba8a;
+  --warn: #e84848;
+  --danger: #e84848;
+  --mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
   --sans: 'IBM Plex Sans', system-ui, sans-serif;
-  --radius: 4px;
+  --radius: 2px;
   --topbar-h: 40px;
   --dock-w: 200px;
+  --dock-w-compact: 56px;
   --kernel-h: 120px;
+  --kernel-h-collapsed: 28px;
   --director-w: 320px;
+  --bottom-dock-h: 52px;
+  --bp-tablet: 768px;
+  --bp-desktop: 1280px;
 }
 
 * {
@@ -35,7 +42,7 @@ body,
   color: var(--text);
   font-family: var(--sans);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 button,

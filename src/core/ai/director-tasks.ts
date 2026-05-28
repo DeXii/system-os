@@ -203,6 +203,46 @@ export const DIRECTOR_TASKS = [
     description: 'Разбор решений',
     core: false,
   },
+  {
+    id: 'contactBrief',
+    label: 'Contact Brief',
+    category: 'coach',
+    defaultScope: 'influence',
+    description: 'Досье и план контакта',
+    core: true,
+  },
+  {
+    id: 'preContactSimulation',
+    label: 'Pre-Contact Sim',
+    category: 'coach',
+    defaultScope: 'influence',
+    description: 'Репетиция контакта',
+    core: false,
+  },
+  {
+    id: 'operationReview',
+    label: 'Operation Review',
+    category: 'system',
+    defaultScope: 'influence',
+    description: 'Разбор активной операции',
+    core: true,
+  },
+  {
+    id: 'decisionFollowUp',
+    label: 'Decision Follow-up',
+    category: 'coach',
+    defaultScope: 'mind',
+    description: 'Закрытие прогнозов решений',
+    core: true,
+  },
+  {
+    id: 'doctrineReview',
+    label: 'Doctrine Review',
+    category: 'system',
+    defaultScope: 'command',
+    description: 'Сверка с доктриной оператора',
+    core: true,
+  },
 ] as const satisfies readonly DirectorTaskMeta[];
 
 export type TaskId = (typeof DIRECTOR_TASKS)[number]['id'];

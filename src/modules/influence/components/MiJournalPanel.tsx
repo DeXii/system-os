@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { todayKey } from '@/core/db';
 import { afterMiEntryComplete } from '@/core/engines/os-kernel';
 import { OARS_FIELD_HINTS } from '@/content/influence-protocols';
+import { ContactSelect } from './ContactSelect';
 
 interface Props {
   onSaved: () => void;
@@ -9,6 +10,10 @@ interface Props {
 
 export function MiJournalPanel({ onSaved }: Props) {
   const [form, setForm] = useState({
+    contactId: '',
+    maskUsed: '',
+    infoDisclosed: '',
+    infoHeld: '',
     situation: '',
     openQuestions: '',
     affirmReflect: '',
@@ -25,6 +30,10 @@ export function MiJournalPanel({ onSaved }: Props) {
     await afterMiEntryComplete({
       date: todayKey(),
       type: 'mi',
+      contactId: form.contactId || undefined,
+      maskUsed: form.maskUsed || undefined,
+      infoDisclosed: form.infoDisclosed || undefined,
+      infoHeld: form.infoHeld || undefined,
       situation: form.situation,
       openQuestions: form.openQuestions,
       affirmReflect: form.affirmReflect || undefined,
@@ -33,6 +42,10 @@ export function MiJournalPanel({ onSaved }: Props) {
       outcome: form.outcome || undefined,
     });
     setForm({
+      contactId: '',
+      maskUsed: '',
+      infoDisclosed: '',
+      infoHeld: '',
       situation: '',
       openQuestions: '',
       affirmReflect: '',
@@ -46,9 +59,37 @@ export function MiJournalPanel({ onSaved }: Props) {
   return (
     <div className="panel">
       <div className="panel-title">MI Journal · OARS</div>
-      <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
-        Motivational Interviewing — тактика открытых вопросов оператора.
-      </p>
+      <div className="form-row">
+        <label className="label">Контакт</label>
+        <ContactSelect
+          value={form.contactId}
+          onChange={(id) => setForm({ ...form, contactId: id })}
+        />
+      </div>
+      <div className="form-row">
+        <label className="label">Маска</label>
+        <input
+          className="input"
+          value={form.maskUsed}
+          onChange={(e) => setForm({ ...form, maskUsed: e.target.value })}
+        />
+      </div>
+      <div className="form-row">
+        <label className="label">Раскрыто</label>
+        <input
+          className="input"
+          value={form.infoDisclosed}
+          onChange={(e) => setForm({ ...form, infoDisclosed: e.target.value })}
+        />
+      </div>
+      <div className="form-row">
+        <label className="label">Удержано</label>
+        <input
+          className="input"
+          value={form.infoHeld}
+          onChange={(e) => setForm({ ...form, infoHeld: e.target.value })}
+        />
+      </div>
       {(
         [
           ['situation', 'textarea'],

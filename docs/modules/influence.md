@@ -6,13 +6,16 @@
 
 | Панель | taskKey | Описание |
 |--------|---------|----------|
+| Contacts | — | досье людей (мотивы, disclosure) |
+| Operations | — | многоходовые кампании |
+| Pre-Contact | `influence.protocol` | маска, цель, tactical protocol + DIRECTOR brief/sim |
 | Influence Protocol | `influence.protocol` | 4 пункта чеклиста оператора перед контактом |
 | MI Journal (OARS) | `influence.mi` | situation, open questions, affirm/reflect, summarize, what worked, outcome |
 | Nudge Journal | `influence.nudge` | context, nudge type, outcome |
 | Bias Log | `influence.bias` | когнитивное искажение + коррекция |
 | Observation / Debrief | `influence.observation` | Theory of Mind, post-contact debrief |
 | Influence Ops | — | 7d метрики + hints из COMMAND |
-| DIRECTOR | `influenceCoach` | холодная тактика, без ethics checklist |
+| DIRECTOR | `influenceCoach`, `contactBrief`, `operationReview` | тактика класса |
 
 ## taskKey (stage)
 

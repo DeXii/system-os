@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { DEFAULT_DOCTRINE_RULES } from '@/content/doctrine-defaults';
 import { db, todayKey } from '@/core/db';
+import { saveDoctrine } from '@/core/engines/doctrine-service';
 import { emitKernel } from '@/core/events/event-bus';
 import type { OperatorProfile } from '@/core/domain/types';
 
@@ -25,6 +27,7 @@ export function Onboarding({ onComplete }: Props) {
       createdAt: new Date().toISOString(),
     };
     await db.operator.put(profile);
+    await saveDoctrine([...DEFAULT_DOCTRINE_RULES].slice(0, 3));
     await emitKernel('command', `Оператор ${profile.codename} зарегистрирован`, 'success');
     onComplete();
   };
@@ -58,7 +61,7 @@ export function Onboarding({ onComplete }: Props) {
           gate в INTEGRATION после выполнения критериев.
         </p>
         <p className="kernel-line" style={{ marginBottom: '1rem' }}>
-          Принимаю этический протокол: влияние — осознанное, без манипуляции и вреда.
+          Активирую тактическую OS: дисциплина, расчёт, маска, многоходовые операции.
         </p>
         <button type="button" className="btn btn-primary btn-block" onClick={submit}>
           Активировать систему

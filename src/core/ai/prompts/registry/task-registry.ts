@@ -1,0 +1,221 @@
+import type { TaskId } from '../../director-tasks';
+import type { DirectorTaskPromptConfig } from '../../director/director-types';
+
+const MISSION_PROTOCOL: DirectorTaskPromptConfig['allowedActions'] = [
+  'add_mission',
+  'add_protocol',
+  'complete_slot',
+  'log_note',
+];
+
+const ALL_ACTIONS: DirectorTaskPromptConfig['allowedActions'] = [
+  'add_mission',
+  'add_protocol',
+  'log_note',
+  'move_slot',
+  'complete_slot',
+  'add_schedule_slot',
+  'set_workout_plan',
+  'set_cardio_session_plan',
+];
+
+export const TASK_REGISTRY: Record<TaskId, DirectorTaskPromptConfig> = {
+  morningBriefing: {
+    templateId: 'briefing',
+    templateParams: { kind: 'morning' },
+    outputFormat: 'commandMorning',
+    allowedActions: ['add_mission', 'add_protocol', 'log_note'],
+    constraintIds: ['dataIntegrity', 'readiness', 'doctrine'],
+  },
+  eveningDebrief: {
+    templateId: 'briefing',
+    templateParams: { kind: 'evening' },
+    outputFormat: 'commandEvening',
+    allowedActions: ['log_note'],
+    constraintIds: ['dataIntegrity', 'readiness'],
+  },
+  weeklyAudit: {
+    templateId: 'analysis',
+    templateParams: { kind: 'weekly' },
+    outputFormat: 'analysisWeekly',
+    allowedActions: ['add_mission', 'log_note'],
+    constraintIds: ['dataIntegrity', 'readiness', 'doctrine'],
+  },
+  deepAnalysis14d: {
+    templateId: 'analysis',
+    templateParams: { kind: 'deep', days: 14 },
+    outputFormat: 'analysisDeep',
+    allowedActions: ['add_mission', 'log_note'],
+    constraintIds: ['dataIntegrity', 'readiness', 'equipment', 'training'],
+  },
+  deepAnalysis30d: {
+    templateId: 'analysis',
+    templateParams: { kind: 'deep', days: 30 },
+    outputFormat: 'analysisDeep',
+    allowedActions: ['add_mission', 'log_note'],
+    constraintIds: ['dataIntegrity', 'readiness', 'equipment', 'training'],
+  },
+  pdpReview: {
+    templateId: 'analysis',
+    templateParams: { kind: 'pdp' },
+    outputFormat: 'analysisWeekly',
+    allowedActions: ['log_note'],
+    constraintIds: ['dataIntegrity', 'doctrine'],
+  },
+  stageGateReview: {
+    templateId: 'analysis',
+    templateParams: { kind: 'stageGate' },
+    outputFormat: 'analysisWeekly',
+    allowedActions: ['add_mission', 'add_protocol'],
+    constraintIds: ['dataIntegrity', 'readiness'],
+  },
+  foundationCoach: {
+    templateId: 'training',
+    templateParams: { mode: 'coach', variant: 'hift', intensity: 'moderate' },
+    outputFormat: 'coachWorkout',
+    allowedActions: ['log_note'],
+    constraintIds: ['dataIntegrity', 'equipment', 'training', 'readiness'],
+  },
+  planWorkout: {
+    templateId: 'training',
+    templateParams: { mode: 'plan', variant: 'legacy', requireActions: true },
+    outputFormat: 'coachWorkout',
+    allowedActions: ['set_workout_plan'],
+    constraintIds: ['dataIntegrity', 'equipment', 'training'],
+  },
+  planHift: {
+    templateId: 'training',
+    templateParams: { mode: 'plan', variant: 'hift', intensity: 'edge', requireActions: true },
+    outputFormat: 'coachWorkout',
+    allowedActions: ['set_workout_plan'],
+    constraintIds: ['dataIntegrity', 'equipment', 'training'],
+  },
+  planGpp: {
+    templateId: 'training',
+    templateParams: { mode: 'plan', variant: 'gpp', intensity: 'edge', requireActions: true },
+    outputFormat: 'coachWorkout',
+    allowedActions: ['set_workout_plan'],
+    constraintIds: ['dataIntegrity', 'equipment', 'training'],
+  },
+  planWarmup: {
+    templateId: 'training',
+    templateParams: { mode: 'plan', variant: 'warmup', intensity: 'light', requireActions: true },
+    outputFormat: 'coachWorkout',
+    allowedActions: ['set_workout_plan'],
+    constraintIds: ['dataIntegrity', 'equipment', 'training'],
+  },
+  planStretch: {
+    templateId: 'training',
+    templateParams: { mode: 'plan', variant: 'stretch', intensity: 'light', requireActions: true },
+    outputFormat: 'coachWorkout',
+    allowedActions: ['set_workout_plan'],
+    constraintIds: ['dataIntegrity', 'equipment', 'training'],
+  },
+  planCardioIntense: {
+    templateId: 'training',
+    templateParams: { mode: 'plan', variant: 'cardio_intense', requireActions: true },
+    outputFormat: 'coachWorkout',
+    allowedActions: ['set_cardio_session_plan'],
+    constraintIds: ['dataIntegrity', 'readiness'],
+  },
+  planCardioEasy: {
+    templateId: 'training',
+    templateParams: { mode: 'plan', variant: 'cardio_easy', requireActions: true },
+    outputFormat: 'coachWorkout',
+    allowedActions: ['set_cardio_session_plan'],
+    constraintIds: ['dataIntegrity', 'readiness'],
+  },
+  regulationCoach: {
+    templateId: 'regulation',
+    outputFormat: 'coachRegulation',
+    allowedActions: ['add_protocol', 'complete_slot', 'log_note'],
+    constraintIds: ['dataIntegrity', 'readiness'],
+  },
+  mindCoach: {
+    templateId: 'cognitive',
+    templateParams: { kind: 'coach' },
+    outputFormat: 'coachMind',
+    allowedActions: MISSION_PROTOCOL,
+    constraintIds: ['dataIntegrity', 'readiness', 'cognitive'],
+  },
+  influenceCoach: {
+    templateId: 'communication',
+    templateParams: { kind: 'coach' },
+    outputFormat: 'coachInfluence',
+    allowedActions: ['add_protocol', 'log_note'],
+    constraintIds: ['dataIntegrity', 'readiness', 'communication'],
+  },
+  libraryCoach: {
+    templateId: 'library',
+    outputFormat: 'coachLibrary',
+    allowedActions: [],
+    constraintIds: ['dataIntegrity'],
+  },
+  freeCommand: {
+    templateId: 'planning',
+    templateParams: { kind: 'free' },
+    outputFormat: 'minimal',
+    allowedActions: ALL_ACTIONS,
+    constraintIds: ['dataIntegrity', 'equipment', 'readiness', 'training', 'communication'],
+  },
+  rescheduleDay: {
+    templateId: 'planning',
+    templateParams: { kind: 'reschedule' },
+    outputFormat: 'minimal',
+    allowedActions: ['move_slot', 'complete_slot'],
+    constraintIds: ['dataIntegrity', 'scheduling'],
+  },
+  buildWeekSchedule: {
+    templateId: 'planning',
+    templateParams: { kind: 'weekSchedule' },
+    outputFormat: 'minimal',
+    allowedActions: ['add_schedule_slot', 'log_note'],
+    constraintIds: ['dataIntegrity', 'scheduling', 'equipment'],
+  },
+  tacticalDebrief: {
+    templateId: 'cognitive',
+    templateParams: { kind: 'tacticalDebrief' },
+    outputFormat: 'coachMind',
+    allowedActions: ['log_note'],
+    constraintIds: ['dataIntegrity', 'cognitive'],
+  },
+  contactBrief: {
+    templateId: 'communication',
+    templateParams: { kind: 'contactBrief' },
+    outputFormat: 'coachInfluence',
+    allowedActions: ['log_note'],
+    constraintIds: ['dataIntegrity', 'communication'],
+  },
+  preContactSimulation: {
+    templateId: 'communication',
+    templateParams: { kind: 'preContact' },
+    outputFormat: 'coachInfluence',
+    allowedActions: [],
+    constraintIds: ['dataIntegrity', 'communication'],
+  },
+  operationReview: {
+    templateId: 'communication',
+    templateParams: { kind: 'operationReview' },
+    outputFormat: 'coachInfluence',
+    allowedActions: MISSION_PROTOCOL,
+    constraintIds: ['dataIntegrity', 'communication'],
+  },
+  decisionFollowUp: {
+    templateId: 'cognitive',
+    templateParams: { kind: 'decisionFollowUp' },
+    outputFormat: 'coachMind',
+    allowedActions: ['add_mission', 'log_note'],
+    constraintIds: ['dataIntegrity', 'cognitive'],
+  },
+  doctrineReview: {
+    templateId: 'analysis',
+    templateParams: { kind: 'doctrine' },
+    outputFormat: 'analysisWeekly',
+    allowedActions: ['log_note'],
+    constraintIds: ['dataIntegrity', 'doctrine', 'readiness'],
+  },
+};
+
+export function getTaskPromptConfig(taskId: TaskId): DirectorTaskPromptConfig {
+  return TASK_REGISTRY[taskId];
+}

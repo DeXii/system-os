@@ -8,6 +8,9 @@ interface Props {
 const TASKS = getTasksForScope('influence').filter(
   (t) =>
     t.id === 'influenceCoach' ||
+    t.id === 'contactBrief' ||
+    t.id === 'preContactSimulation' ||
+    t.id === 'operationReview' ||
     t.id === 'tacticalDebrief' ||
     t.id === 'freeCommand'
 );

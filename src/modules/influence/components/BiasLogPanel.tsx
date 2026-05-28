@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { todayKey } from '@/core/db';
 import { afterBiasEntryComplete } from '@/core/engines/os-kernel';
 import { COGNITIVE_BIAS_CATALOG } from '@/content/influence-protocols';
-import { GlossaryZone } from '@/ui/glossary';
-
 interface Props {
   onSaved: () => void;
 }
@@ -38,12 +36,6 @@ export function BiasLogPanel({ onSaved }: Props) {
   return (
     <div className="panel">
       <div className="panel-title">Bias Log · Когнитивное искажение</div>
-      <GlossaryZone>
-        <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
-          Bias log — какое cognitive bias заметили, как скорректировали; связано с observation и
-          debrief в influence.
-        </p>
-      </GlossaryZone>
       <div className="form-row">
         <label className="label">Искажение</label>
         <select

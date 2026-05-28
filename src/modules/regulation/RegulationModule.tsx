@@ -9,9 +9,10 @@ import { RegulationDirectorPanel } from './components/RegulationDirectorPanel';
 import { RegulationOpsSummary } from './components/RegulationOpsSummary';
 import { ResonantBreathLive } from './components/ResonantBreathLive';
 import { StressLogPanel } from './components/StressLogPanel';
+import { TriggerLogPanel } from './components/TriggerLogPanel';
 import { WimHofLive } from './components/WimHofLive';
 import { StageBooksWidget } from '@/modules/library/components/StageBooksWidget';
-import { GlossaryZone } from '@/ui/glossary';
+import { ModuleShell } from '@/ui/shell/ModuleShell';
 
 interface Props {
   moduleStatus: ModuleStatus;
@@ -54,13 +55,11 @@ export function RegulationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
 
   return (
     <div>
-      <h1 style={{ fontFamily: 'var(--mono)', marginBottom: '1rem' }}>REGULATION — Этап 2</h1>
-      <GlossaryZone>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
-          Regulation: HRV monitor, resonant breath, Wim Hof, mindfulness, MMFT, stress log и
-          recovery zone при низком baseline.
-        </p>
-      </GlossaryZone>
+      <ModuleShell
+        title="REGULATION"
+        subtitle="STG-2 · BASELINE CONTROL"
+        chips={degraded ? <span className="tag warn">DEGRADED</span> : undefined}
+      />
       {degraded && <div className="alert-banner">{degraded}</div>}
       {queueHints.length > 0 && (
         <div className="alert-banner" style={{ borderColor: 'var(--accent)' }}>
@@ -93,12 +92,8 @@ export function RegulationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
           {liveTab === 'resonant' && <ResonantBreathLive onComplete={handleActivity} />}
           {liveTab === 'wimhof' && <WimHofLive onComplete={handleActivity} />}
           {!liveTab && (
-            <div className="panel">
-              <GlossaryZone>
-                <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                  Resonant breath (~6 вд/мин) или Wim Hof — только если HRV не в recovery zone.
-                </p>
-              </GlossaryZone>
+            <div className="text-xs text-dim" style={{ padding: '0.5rem 0' }}>
+              SELECT LIVE MODE ↑
             </div>
           )}
         </div>
@@ -108,6 +103,8 @@ export function RegulationModule({ moduleStatus, onRefresh, onOpenLibrary }: Pro
         <MindfulnessLive onComplete={handleActivity} />
         <StressLogPanel onSaved={handleActivity} />
       </div>
+
+      <TriggerLogPanel onSaved={handleActivity} />
 
       <RegulationDirectorPanel onApplied={handleActivity} />
     </div>

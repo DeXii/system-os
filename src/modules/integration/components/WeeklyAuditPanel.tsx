@@ -3,7 +3,7 @@ import { afterWeeklyAuditComplete } from '@/core/engines/os-kernel';
 import type { AiInsight } from '@/core/domain/types';
 import { useDirectorRunner } from '@/modules/director/hooks/useDirectorRunner';
 import { ActionCards } from '@/modules/director/components/ActionCards';
-import { GlossaryZone } from '@/ui/glossary';
+import { TerminalBlock } from '@/ui/components/TerminalBlock';
 
 interface Props {
   onSaved: () => void;
@@ -47,22 +47,13 @@ export function WeeklyAuditPanel({ onSaved }: Props) {
 
   return (
     <div className="panel">
-      <div className="panel-title">Weekly System Audit</div>
-      <GlossaryZone>
-        <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
-          Weekly audit — DIRECTOR сверяет PDP, readiness, bottleneck и synergy за неделю; insight и
-          action card можно применить в OS.
-        </p>
-        <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
-          Статус DIRECTOR: {status.toUpperCase()} — нужен Groq и proxy в Archive.
-        </p>
-      </GlossaryZone>
+      <div className="panel-title">Weekly System Audit · {status.toUpperCase()}</div>
       <button type="button" className="btn btn-primary" disabled={loading} onClick={handleRun}>
         Запустить Weekly Audit
       </button>
       {output && (
-        <div className="director-output" style={{ marginTop: 12 }}>
-          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{output}</pre>
+        <div className="mb-sm" style={{ marginTop: 12 }}>
+          <TerminalBlock>{output}</TerminalBlock>
         </div>
       )}
       {insight && insight.actions.length > 0 && (

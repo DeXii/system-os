@@ -28,7 +28,9 @@ import type {
   ReadinessScores,
   StageProgressState,
 } from '@/core/domain/types';
+import type { TaskId } from '@/core/ai/director-tasks';
 import { AlertsPanel } from './components/AlertsPanel';
+import { ProactiveOpsBanner } from './components/ProactiveOpsBanner';
 import { CommandHeader } from './components/CommandHeader';
 import { DayPhase } from './components/DayPhase';
 import { DirectorInline, runCommandDirectorTask } from './components/DirectorInline';
@@ -37,7 +39,8 @@ import { MorningPhase } from './components/MorningPhase';
 import { StageOverview } from './components/StageOverview';
 import { StageTransitionBanner } from './components/StageTransitionBanner';
 import { WeekSchedulePanel } from './components/WeekSchedulePanel';
-import { GlossaryZone } from '@/ui/glossary';
+import { ModuleShell } from '@/ui/shell/ModuleShell';
+import { TerminalBlock } from '@/ui/components/TerminalBlock';
 
 interface Props {
   profile: OperatorProfile | null;
@@ -146,6 +149,16 @@ export function CommandModule({ profile, readiness, onRefresh, onOpenIntegration
     );
   };
 
+  const runDirectorTask = async (taskId: TaskId) => {
+    await runCommandDirectorTask(
+      taskId,
+      setDirectorLoading,
+      setDirectorOutput,
+      setLastInsight,
+      () => afterDataChange()
+    );
+  };
+
   const applyDirectorActions = async (selected = lastInsight?.actions ?? []) => {
     if (!selected.length) return;
     await applyAiActions(selected);
@@ -172,13 +185,14 @@ export function CommandModule({ profile, readiness, onRefresh, onOpenIntegration
 
   return (
     <div>
+      <ModuleShell title="COMMAND" subtitle="DAILY OPS CENTER" />
       <CommandHeader profile={localProfile} readiness={readiness} dayReport={dayReport} />
-      <GlossaryZone>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
-          COMMAND: morning phase (briefing) и evening phase (debrief), compliance по mission и
-          protocol, alerts от readiness.
-        </p>
-      </GlossaryZone>
+      <ProactiveOpsBanner
+        hints={hints}
+        dayReport={dayReport}
+        onRunDirector={runDirectorTask}
+        directorLoading={directorLoading}
+      />
       <AlertsPanel hints={hints} />
       <StageTransitionBanner
         pendingAdvance={progress?.pendingAdvance}
@@ -225,9 +239,9 @@ export function CommandModule({ profile, readiness, onRefresh, onOpenIntegration
       />
 
       {directorOutput && (
-        <div className="panel" style={{ marginBottom: '1rem' }}>
-          <div className="panel-title">DIRECTOR — последний ответ</div>
-          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{directorOutput}</pre>
+        <div className="panel">
+          <div className="panel-title">DIRECTOR — LAST</div>
+          <TerminalBlock>{directorOutput}</TerminalBlock>
           {lastInsight && !directorLoading && lastInsight.actions.length > 0 && (
             <ActionCards
               actions={lastInsight.actions}

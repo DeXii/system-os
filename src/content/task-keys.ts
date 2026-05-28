@@ -26,6 +26,12 @@ export const TASK_KEYS = {
   influenceMi: 'influence.mi',
   influenceNudge: 'influence.nudge',
   influenceObservation: 'influence.observation',
+  influenceContactPrep: 'influence.contact_prep',
+  influenceOperationReview: 'influence.operation_review',
+  mindDecisionFollowup: 'mind.decision.followup',
+  mindStudy: 'mind.study',
+  regulationTriggerLog: 'regulation.trigger_log',
+  commandDoctrineReview: 'command.doctrine_review',
   integrationWeeklyAudit: 'integration.weekly_audit',
   integrationPdpReview: 'integration.pdp_review',
 } as const;
