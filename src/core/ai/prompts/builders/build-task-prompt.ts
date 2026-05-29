@@ -1,5 +1,6 @@
 import type { TaskId } from '../../director-tasks';
 import { getTaskPromptConfig } from '../registry/task-registry';
+import { truncateUntrustedText, wrapUntrustedUserText } from '../untrusted-text';
 
 export function buildUserMessage(
   taskId: TaskId,
@@ -21,7 +22,7 @@ export function buildUserMessage(
       `Разрешённые actions: ${allowed}`,
       '',
       'Запрос оператора:',
-      options.operatorMessage,
+      wrapUntrustedUserText(truncateUntrustedText(options.operatorMessage)),
     ].join('\n');
   }
 

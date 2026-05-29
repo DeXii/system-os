@@ -467,6 +467,11 @@ export function weekdayIndex(d = new Date()): 0 | 1 | 2 | 3 | 4 | 5 | 6 {
   return (js === 0 ? 6 : js - 1) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 }
 
+/** Weekday index (Mon=0) for a YYYY-MM-DD date key in local timezone. */
+export function weekdayIndexForDate(dateKey: string): 0 | 1 | 2 | 3 | 4 | 5 | 6 {
+  return weekdayIndex(new Date(`${dateKey}T12:00:00`));
+}
+
 export function tomorrowKey(from = new Date()): string {
   const d = new Date(from);
   d.setDate(d.getDate() + 1);

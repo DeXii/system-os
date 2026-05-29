@@ -33,6 +33,16 @@ export function isHrvBelowBaseline(entry: HrvEntry, baseline: number | null): bo
   return entry.rmssd < baseline * 0.85;
 }
 
+/** Gate-aligned: days in last 14 with regulation≥60 and foundation≥50 (see stage-transition-rules). */
+export async function getRegulationPractice14d(): Promise<number> {
+  const progress = await db.stageProgress.get('progress');
+  const history = progress?.readinessHistory ?? [];
+  return history
+    .slice(-14)
+    .filter((e) => e.regulation >= 60 && e.foundation >= 50).length;
+}
+
+/** @deprecated UI combo streak (HRV+breath+mind same day); use getRegulationPractice14d for gates. */
 export async function getRegulationStreak(): Promise<number> {
   let streak = 0;
   for (let d = 0; d < 30; d++) {

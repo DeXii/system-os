@@ -68,15 +68,22 @@ export function processDirectorResponse(
   rawText: string,
   contextJson: string,
   allowedActions: DirectorPromptBundle['allowedActions']
-): { text: string; actions: ReturnType<typeof validateAndFilterActions>['actions'] } {
+): {
+  text: string;
+  actions: ReturnType<typeof validateAndFilterActions>['actions'];
+  dropped: ReturnType<typeof validateAndFilterActions>['dropped'];
+  rawActionCount: number;
+} {
   const rawActions = parseAiActions(rawText);
   const context = parseContextSnapshot(contextJson);
-  const { actions } = validateAndFilterActions(rawActions, {
+  const { actions, dropped } = validateAndFilterActions(rawActions, {
     allowedActions,
     context,
   });
   return {
     text: stripActionsBlock(rawText),
     actions,
+    dropped,
+    rawActionCount: rawActions.length,
   };
 }

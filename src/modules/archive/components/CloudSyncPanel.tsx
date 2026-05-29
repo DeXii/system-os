@@ -12,6 +12,8 @@ import {
   subscribeCloudSync,
   type CloudSnapshotInspect,
 } from '@/core/sync/cloud-sync';
+import { db } from '@/core/db';
+import { downloadExportJson, exportAllData } from '@/core/data/export-import';
 import { signOutUser } from '@/core/firebase/auth';
 import { GlossaryZone } from '@/ui/glossary';
 
@@ -65,6 +67,33 @@ export function CloudSyncPanel() {
   const syncNow = async () => {
     setBusy(true);
     setMsg('');
+    const inspect = await inspectCloudSnapshot();
+    if (localHasData && inspect.ok && !inspect.cloudEmpty && inspect.updatedAt) {
+      const localMeta = await db.dbMeta.get('db-meta');
+      const localUpdated = localMeta?.lastUpdated ?? '';
+      if (localUpdated && localUpdated < inspect.updatedAt) {
+        if (
+          !window.confirm(
+            'Облачный snapshot новее локального. Будет выполнено объединение (merge), локальные записи не в облаке сохранятся. Перед merge будет скачан резервный JSON. Продолжить?'
+          )
+        ) {
+          setBusy(false);
+          return;
+        }
+        try {
+          const backupJson = await exportAllData();
+          downloadExportJson(
+            backupJson,
+            new Date(),
+            `ayanakoji-backup-before-cloud-merge-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`
+          );
+        } catch (e) {
+          setMsg(e instanceof Error ? e.message : 'Ошибка резервной копии');
+          setBusy(false);
+          return;
+        }
+      }
+    }
     const pull = await pullFromCloud();
     if (!pull.ok) {
       setMsg(pull.error);

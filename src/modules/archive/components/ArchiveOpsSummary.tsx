@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { db } from '@/core/db';
 import { getDirectorConfig } from '@/core/ai/director-service';
 import { useDirectorStatus } from '@/hooks/useDirectorStatus';
@@ -30,8 +31,15 @@ export function ArchiveOpsSummary() {
     setLastInsight(last?.createdAt ?? null);
   }, []);
 
+  useAsyncEffect(
+    async (signal) => {
+      await load();
+      if (signal.aborted) return;
+    },
+    [load]
+  );
+
   useEffect(() => {
-    void load();
     const unsubK = subscribeKernel(() => void load());
     const unsubR = subscribeOsRefresh(() => void load());
     return () => {

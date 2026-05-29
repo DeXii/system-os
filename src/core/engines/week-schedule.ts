@@ -1,5 +1,5 @@
 import { TASK_KEYS } from '@/content/task-keys';
-import { db, todayKey, tomorrowKey, uid, weekdayIndex } from '../db';
+import { db, todayKey, tomorrowKey, uid, weekdayIndex, weekdayIndexForDate } from '../db';
 import type {
   DayScheduleOverride,
   OperatorProfile,
@@ -24,6 +24,21 @@ const TYPE_ORDER: ScheduleItemType[] = [
 function slotRank(type: ScheduleItemType, index: number): number {
   const base = TYPE_ORDER.indexOf(type) * 100;
   return base + index;
+}
+
+const dayScheduleChains = new Map<string, Promise<unknown>>();
+
+function runWithDayScheduleLock<T>(date: string, fn: () => Promise<T>): Promise<T> {
+  const prev = dayScheduleChains.get(date) ?? Promise.resolve();
+  const result = prev.then(() => fn());
+  dayScheduleChains.set(
+    date,
+    result.then(
+      () => undefined,
+      () => undefined
+    )
+  );
+  return result;
 }
 
 export async function getWeekTemplate(): Promise<WeekScheduleTemplate> {
@@ -84,7 +99,7 @@ export async function getSlotsForDate(date: string): Promise<ScheduleSlot[]> {
   return [...(template.slots[wd] ?? [])].sort((a, b) => a.rank - b.rank);
 }
 
-export async function saveDayOverride(
+async function saveDayOverrideUnlocked(
   date: string,
   slots: ScheduleSlot[],
   source: DayScheduleOverride['source'] = 'manual',
@@ -93,37 +108,92 @@ export async function saveDayOverride(
   await db.dayOverrides.put({ date, slots, source, note });
 }
 
+export async function saveDayOverride(
+  date: string,
+  slots: ScheduleSlot[],
+  source: DayScheduleOverride['source'] = 'manual',
+  note?: string
+): Promise<void> {
+  return runWithDayScheduleLock(date, () =>
+    saveDayOverrideUnlocked(date, slots, source, note)
+  );
+}
+
 export async function buildTodayQueue(date = todayKey()): Promise<ScheduleSlot[]> {
   const override = await db.dayOverrides.get(date);
   if (!override || override.slots.length === 0) {
     await syncFromMissionsAndProtocol(date);
   } else {
-    await refreshSlotStatuses(date);
+    await mergeSlotStatusesAndMissing(date);
   }
   const slots = await getSlotsForDate(date);
   return slots.filter((s) => s.status !== 'skipped').sort((a, b) => a.rank - b.rank);
 }
 
-async function refreshSlotStatuses(date: string): Promise<void> {
+async function mergeSlotStatusesAndMissingInner(date: string): Promise<void> {
   const existing = await db.dayOverrides.get(date);
-  const slots = existing?.slots ?? [];
   const missions = await db.missions.where('date').equals(date).toArray();
   const protocol = await db.protocolItems.where('date').equals(date).toArray();
-  const updated = slots.map((s) => {
+  const byKey = new Map<string, ScheduleSlot>();
+
+  for (const s of existing?.slots ?? []) {
+    const key = s.taskKey ?? s.id;
+    let slot = { ...s };
     if (s.type === 'mission' && s.refId) {
       const m = missions.find((x) => x.id === s.refId);
-      if (m?.status === 'done') return { ...s, status: 'done' as const };
+      if (m?.status === 'done') slot = { ...slot, status: 'done' };
+      else if (m?.status === 'skipped') slot = { ...slot, status: 'skipped' };
     }
     if (s.type === 'protocol' && s.refId) {
       const p = protocol.find((x) => x.id === s.refId);
-      if (p?.done) return { ...s, status: 'done' as const };
+      if (p?.done) slot = { ...slot, status: 'done' };
     }
-    return s;
-  });
-  await saveDayOverride(date, updated, existing?.source ?? 'manual');
+    byKey.set(key, slot);
+  }
+
+  let pIdx = protocol.length;
+  for (const p of protocol) {
+    const key = p.taskKey ?? `protocol.${p.id}`;
+    if (byKey.has(key)) continue;
+    byKey.set(key, {
+      id: uid(),
+      taskKey: key,
+      refId: p.id,
+      type: 'protocol',
+      title: p.label,
+      rank: slotRank('protocol', pIdx++),
+      priority: p.priority === 'critical' ? 'critical' : 'routine',
+      stage: p.stage,
+      status: p.done ? 'done' : 'pending',
+    });
+  }
+
+  let mIdx = missions.length;
+  for (const m of missions) {
+    const key = m.taskKey ?? `mission.${m.id}`;
+    if (byKey.has(key)) continue;
+    byKey.set(key, {
+      id: uid(),
+      taskKey: key,
+      refId: m.id,
+      type: 'mission',
+      title: m.title,
+      rank: slotRank('mission', mIdx++),
+      priority: m.priority,
+      stage: m.stage,
+      status: m.status === 'done' ? 'done' : m.status === 'skipped' ? 'skipped' : 'pending',
+    });
+  }
+
+  const merged = rebuildDayRanks(Array.from(byKey.values()));
+  await saveDayOverrideUnlocked(date, merged, existing?.source ?? 'manual');
 }
 
-export async function syncFromMissionsAndProtocol(date: string): Promise<ScheduleSlot[]> {
+async function mergeSlotStatusesAndMissing(date: string): Promise<void> {
+  return runWithDayScheduleLock(date, () => mergeSlotStatusesAndMissingInner(date));
+}
+
+async function syncFromMissionsAndProtocolInner(date: string): Promise<ScheduleSlot[]> {
   const missions = await db.missions.where('date').equals(date).toArray();
   const protocol = await db.protocolItems.where('date').equals(date).toArray();
   const templateSlots = await getSlotsForDate(date);
@@ -211,8 +281,12 @@ export async function syncFromMissionsAndProtocol(date: string): Promise<Schedul
   byKey.set(TASK_KEYS.debrief, debrief);
 
   const slots = rebuildDayRanks(Array.from(byKey.values()));
-  await saveDayOverride(date, slots, 'manual');
+  await saveDayOverrideUnlocked(date, slots, 'manual');
   return slots;
+}
+
+export async function syncFromMissionsAndProtocol(date: string): Promise<ScheduleSlot[]> {
+  return runWithDayScheduleLock(date, () => syncFromMissionsAndProtocolInner(date));
 }
 
 export function rebuildDayRanks(slots: ScheduleSlot[]): ScheduleSlot[] {
@@ -269,11 +343,11 @@ export async function findSlotByTaskKey(
   return slots.find((s) => s.taskKey === taskKey);
 }
 
-export function buildRegulationSlots(profile: OperatorProfile, _date: string): ScheduleSlot[] {
+export function buildRegulationSlots(profile: OperatorProfile, date: string): ScheduleSlot[] {
   const unlocked = getUnlockedStages(profile);
   if (!unlocked.includes('regulation')) return [];
 
-  const wd = weekdayIndex();
+  const wd = weekdayIndexForDate(date);
   const useWimHof = wd === 2 || wd === 5;
   const breathKey = useWimHof
     ? TASK_KEYS.regulationBreathingWimhof
@@ -364,11 +438,11 @@ export function buildIntegrationSlots(
   ];
 }
 
-export function buildMindSlots(profile: OperatorProfile, _date: string): ScheduleSlot[] {
+export function buildMindSlots(profile: OperatorProfile, date: string): ScheduleSlot[] {
   const unlocked = getUnlockedStages(profile);
   if (!unlocked.includes('mind')) return [];
 
-  const wd = weekdayIndex();
+  const wd = weekdayIndexForDate(date);
   const gameLabel = wd % 2 === 0 ? 'Шахматы' : 'Go';
 
   return [

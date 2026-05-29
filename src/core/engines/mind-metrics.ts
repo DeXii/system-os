@@ -19,6 +19,16 @@ export async function getChessRatingTrend(days = 30): Promise<RatingTrendPoint[]
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/** Gate-aligned: days in last 14 with mind≥55, foundation≥48, regulation≥50. */
+export async function getMindPractice14d(): Promise<number> {
+  const progress = await db.stageProgress.get('progress');
+  const history = progress?.readinessHistory ?? [];
+  return history
+    .slice(-14)
+    .filter((e) => e.mind >= 55 && e.foundation >= 48 && e.regulation >= 50).length;
+}
+
+/** @deprecated Combo streak (chess+reflection same day); use getMindPractice14d for gates. */
 export async function getMindStreak(): Promise<number> {
   let streak = 0;
   for (let d = 0; d < 30; d++) {
@@ -55,6 +65,7 @@ export async function getMindOpsSummary(): Promise<{
   studySessions7d: number;
   decisionClosurePct14d: number;
   streak: number;
+  comboStreak: number;
   readingProgress: Awaited<ReturnType<typeof getReadingProgressByLevel>>;
   weeklyReading: Awaited<ReturnType<typeof getWeeklyReadingStatus>>;
 }> {
@@ -76,7 +87,8 @@ export async function getMindOpsSummary(): Promise<{
     decisions7d,
     studySessions7d,
     decisionClosurePct14d: await getDecisionClosureRate14d(),
-    streak: await getMindStreak(),
+    streak: await getMindPractice14d(),
+    comboStreak: await getMindStreak(),
     readingProgress: await getReadingProgressByLevel(),
     weeklyReading: await getWeeklyReadingStatus(),
   };

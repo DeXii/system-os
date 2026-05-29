@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 
 import { db, todayKey } from '@/core/db';
 
@@ -137,11 +138,13 @@ export function NutritionDashboard({ reloadToken, onBump, planDayIndex }: Props)
 
 
 
-  useEffect(() => {
-
-    void load();
-
-  }, [reloadToken, planDayIndex]);
+  useAsyncEffect(
+    async (signal) => {
+      await load();
+      if (signal.aborted) return;
+    },
+    [reloadToken, planDayIndex]
+  );
 
 
 

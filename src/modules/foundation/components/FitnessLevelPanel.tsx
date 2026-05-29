@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import {
   FITNESS_TIER_ORDER,
   fitnessTierLabel,
@@ -15,9 +16,13 @@ export function FitnessLevelPanel() {
     setLevels(await getFitnessLevels());
   };
 
-  useEffect(() => {
-    void load();
-  }, []);
+  useAsyncEffect(
+    async (signal) => {
+      await load();
+      if (signal.aborted) return;
+    },
+    []
+  );
 
   if (!levels) return null;
 

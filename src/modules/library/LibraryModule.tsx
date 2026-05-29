@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { BOOK_LEVEL_GROUPS } from '@/content/os-books-catalog';
 import { db, uid } from '@/core/db';
 import { afterBookMarkedRead } from '@/core/engines/os-kernel';
-import { ensureLibrarySeeded, getReadingProgressByLevel } from '@/core/engines/library-books';
+import {
+  ensureLibrarySeeded,
+  getReadingProgressByLevel,
+  loadBooksPage,
+} from '@/core/engines/library-books';
 import { applyAiActions, runDirectorTask } from '@/core/ai/director-service';
+import type { AiInsight } from '@/core/domain/types';
 import { useDirectorStatus } from '@/hooks/useDirectorStatus';
 import type { BookLevel, BookReadStatus, LibraryBook } from '@/core/domain/types';
 import { ModuleShell } from '@/ui/shell/ModuleShell';
@@ -17,6 +23,10 @@ type Filter = 'all' | 'unread' | 'read';
 
 export function LibraryModule({ onRefresh }: Props) {
   const [books, setBooks] = useState<LibraryBook[]>([]);
+  const [booksTotal, setBooksTotal] = useState(0);
+  const [hasMoreBooks, setHasMoreBooks] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const bookOffsetRef = useRef(0);
   const [filter, setFilter] = useState<Filter>('all');
   const [levelFilter, setLevelFilter] = useState<BookLevel | 'all'>('all');
   const [progress, setProgress] = useState<Awaited<ReturnType<typeof getReadingProgressByLevel>> | null>(
@@ -31,27 +41,48 @@ export function LibraryModule({ onRefresh }: Props) {
     description: '',
   });
   const [directorOut, setDirectorOut] = useState('');
+  const [coachInsight, setCoachInsight] = useState<AiInsight | null>(null);
   const [loadingDirector, setLoadingDirector] = useState(false);
   const directorStatus = useDirectorStatus();
 
-  const load = useCallback(async () => {
-    await ensureLibrarySeeded();
-    let all = await db.libraryBooks.toArray();
-    const stored = sessionStorage.getItem('library-filter-level');
-    if (stored) {
-      setLevelFilter(Number(stored) as BookLevel);
-      sessionStorage.removeItem('library-filter-level');
-    }
-    if (levelFilter !== 'all') all = all.filter((b) => b.level === levelFilter);
-    if (filter === 'unread') all = all.filter((b) => b.status !== 'read');
-    if (filter === 'read') all = all.filter((b) => b.status === 'read');
-    setBooks(all.sort((a, b) => a.level - b.level || a.title.localeCompare(b.title)));
-    setProgress(await getReadingProgressByLevel());
-  }, [filter, levelFilter]);
+  const load = useCallback(
+    async (append = false) => {
+      await ensureLibrarySeeded();
+      const stored = sessionStorage.getItem('library-filter-level');
+      let level = levelFilter;
+      if (stored) {
+        level = Number(stored) as BookLevel;
+        setLevelFilter(level);
+        sessionStorage.removeItem('library-filter-level');
+      }
+      const offset = append ? bookOffsetRef.current : 0;
+      const page = await loadBooksPage({ level, filter, offset });
+      setBooks((prev) => (append ? [...prev, ...page.books] : page.books));
+      bookOffsetRef.current = offset + page.books.length;
+      setBooksTotal(page.total);
+      setHasMoreBooks(page.hasMore);
+      if (!append) setProgress(await getReadingProgressByLevel());
+    },
+    [filter, levelFilter]
+  );
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const loadMore = useCallback(async () => {
+    if (!hasMoreBooks || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      await load(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [hasMoreBooks, loadingMore, load]);
+
+  useAsyncEffect(
+    async (signal) => {
+      await load();
+      if (signal.aborted) return;
+    },
+    [load]
+  );
 
   const setStatus = async (book: LibraryBook, status: BookReadStatus) => {
     if (status === 'read') {
@@ -85,11 +116,35 @@ export function LibraryModule({ onRefresh }: Props) {
       return;
     }
     setLoadingDirector(true);
+    setCoachInsight(null);
     const res = await runDirectorTask('libraryCoach', { scope: 'library' });
     setLoadingDirector(false);
-    setDirectorOut(res.ok ? res.insight.text : res.error);
-    if (res.ok && res.insight.actions.length) {
-      await applyAiActions(res.insight.actions);
+    if (!res.ok) {
+      setDirectorOut(res.error);
+      return;
+    }
+    setCoachInsight(res.insight);
+    const actionHint =
+      res.insight.actions.length > 0
+        ? `\n\n[${res.insight.actions.length} действий — примените вручную]`
+        : '';
+    setDirectorOut(res.insight.text + actionHint);
+  };
+
+  const applyCoachActions = async () => {
+    if (!coachInsight?.actions.length) return;
+    setLoadingDirector(true);
+    try {
+      const { applied, dropped } = await applyAiActions(coachInsight.actions);
+      setDirectorOut(
+        (o) =>
+          o +
+          `\n\n[Применено: ${applied}${dropped ? `, отброшено: ${dropped}` : ''}]`
+      );
+      setCoachInsight(null);
+      onRefresh();
+    } finally {
+      setLoadingDirector(false);
     }
   };
 
@@ -141,6 +196,17 @@ export function LibraryModule({ onRefresh }: Props) {
           </button>
         </div>
         {directorOut && <TerminalBlock>{directorOut}</TerminalBlock>}
+        {coachInsight && coachInsight.actions.length > 0 && (
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            style={{ marginTop: 8 }}
+            disabled={loadingDirector}
+            onClick={() => void applyCoachActions()}
+          >
+            Применить действия DIRECTOR ({coachInsight.actions.length})
+          </button>
+        )}
       </div>
 
       {BOOK_LEVEL_GROUPS.map((group) => {
@@ -211,6 +277,21 @@ export function LibraryModule({ onRefresh }: Props) {
           </details>
         );
       })}
+
+      <p style={{ fontSize: 11, color: 'var(--text-dim)', margin: '4px 0 8px' }}>
+        Показано {books.length} из {booksTotal}
+      </p>
+      {hasMoreBooks && (
+        <button
+          type="button"
+          className="btn btn-sm"
+          style={{ marginBottom: 12 }}
+          disabled={loadingMore}
+          onClick={() => void loadMore()}
+        >
+          {loadingMore ? 'Загрузка…' : 'Ещё книги'}
+        </button>
+      )}
 
       <div className="panel">
         <div className="panel-title">Добавить книгу</div>

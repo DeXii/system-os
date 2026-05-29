@@ -1,5 +1,6 @@
 import { db, dateKeyDaysAgo, todayKey } from '../db';
-import { getOrCreateDayReport } from './command-compliance';
+import { getOrCreateDayReport, refreshDayReportCompliance } from './command-compliance';
+import { setSucceeded } from './progression-engine';
 import {
   getBreathing7dSummary,
   getHrvTrendScore,
@@ -82,7 +83,7 @@ async function foundationScore(): Promise<number> {
   const since14 = dateKeyDaysAgo(13);
   const recentLogs = await db.setLogs.where('date').aboveOrEqual(since14).toArray();
   const progressed = new Set(
-    recentLogs.filter((l) => l.actualReps >= l.targetReps).map((l) => l.exerciseId)
+    recentLogs.filter((l) => setSucceeded(l)).map((l) => l.exerciseId)
   );
   const progressionScore = Math.min(15, progressed.size * 3);
 
@@ -93,7 +94,7 @@ async function foundationScore(): Promise<number> {
     const daysSince = Math.floor(
       (Date.now() - new Date(test.date).getTime()) / (86400000)
     );
-    if (daysSince < 84) testScore += 15;
+    if (daysSince < 90) testScore += 15;
   }
 
   const recoveryDays = logs.filter(
@@ -267,6 +268,9 @@ export async function computeReadiness(): Promise<ReadinessScores> {
 export async function getRuleHints(): Promise<string[]> {
   const hints: string[] = [];
   const today = todayKey();
+  for (let d = 0; d < 7; d++) {
+    await refreshDayReportCompliance(dateKeyDaysAgo(d));
+  }
   const readiness = await getReadiness();
   const profile = await db.operator.toCollection().first();
 
@@ -338,8 +342,8 @@ export async function getRuleHints(): Promise<string[]> {
     const daysSince = Math.floor(
       (Date.now() - new Date(test.date).getTime()) / 86400000
     );
-    if (daysSince > 84) {
-      hints.push('BFT stale > 84 дней — повторный тест в FOUNDATION');
+    if (daysSince > 90) {
+      hints.push('BFT stale > 90 дней — повторный тест в FOUNDATION');
     }
   }
 

@@ -10,6 +10,7 @@ import {
   saveDayOverride,
   syncFromMissionsAndProtocol,
 } from '../../engines/week-schedule';
+import { bumpGlobalRevision } from '../../db/write';
 import { emitDomainEvent, emitKernel, emitOsRefresh } from '../../events/event-bus';
 import { completeByTaskKey } from './complete';
 
@@ -123,6 +124,7 @@ export async function applyDirectorActions(actions: AiAction[]): Promise<void> {
   }
 
   if (actions.length > 0) {
+    await bumpGlobalRevision();
     await emitDomainEvent({ type: 'DIRECTOR_ACTION_APPLIED', actionCount: actions.length });
   }
   emitOsRefresh();

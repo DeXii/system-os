@@ -146,6 +146,8 @@ export interface TrainingSession {
   intensity: 'low' | 'medium' | 'high';
   notes?: string;
   workoutKind?: WorkoutKind;
+  workoutPlanId?: string;
+  cardioSessionId?: string;
 }
 
 export interface CardioSession {

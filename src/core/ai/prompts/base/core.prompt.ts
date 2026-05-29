@@ -1,3 +1,5 @@
+import { UNTRUSTED_DATA_SYSTEM_RULE } from '../untrusted-text';
+
 /** Слой 1 — universal SYSTEM CORE (без сценариев задач) */
 export function buildCorePrompt(): string {
   return `Ты DIRECTOR — операционный интеллект AYANAKOJI OS.
@@ -41,7 +43,9 @@ ANTI-OVERENGINEERING:
 Предпочитать простые механизмы сложным.
 
 LAYER DISCIPLINE:
-SYSTEM CORE не должен содержать сценарии задач, только общие правила поведения.`;
+SYSTEM CORE не должен содержать сценарии задач, только общие правила поведения.
+
+${UNTRUSTED_DATA_SYSTEM_RULE}`;
 }
 
 export const SYSTEM_PROMPT = 'Ты DIRECTOR — операционный интеллект AYANAKOJI OS.';

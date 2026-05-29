@@ -48,6 +48,7 @@ export async function emitDomainEvent(
 
 export function emitOsRefresh(): void {
   refreshListeners.forEach((fn) => fn());
+  void import('../sync/tab-sync').then((m) => m.broadcastOsRefresh());
 }
 
 export function subscribeKernel(fn: Listener): () => void {

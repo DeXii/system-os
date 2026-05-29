@@ -56,6 +56,7 @@ const defaultModuleStatuses: Record<ModuleId, ModuleStatus> = {
 };
 
 let wired = false;
+let hydrateGeneration = 0;
 
 export const useOsStore = create<OsStoreState>((set, get) => ({
   profile: null,
@@ -67,12 +68,14 @@ export const useOsStore = create<OsStoreState>((set, get) => ({
   loading: true,
 
   hydrate: async () => {
+    const gen = ++hydrateGeneration;
     const p = await db.operator.toCollection().first();
     const r = await getReadiness();
     const statuses = getModuleStatuses(r);
     const mode = await computeOperatorMode(r);
     const queue = await buildTodayQueue(todayKey());
     const ev = await getRecentEvents(30);
+    if (gen !== hydrateGeneration) return;
     set({
       profile: p ?? null,
       readiness: r,
@@ -97,10 +100,15 @@ export function wireOsStoreSubscriptions(): () => void {
   const u1 = subscribeKernel(() => store.invalidate());
   const u2 = subscribeOsRefresh(() => store.invalidate());
   const u3 = subscribeDomainEvent(() => store.invalidate());
+  let u4 = () => {};
+  void import('@/core/sync/tab-sync').then((tabSync) => {
+    u4 = tabSync.subscribeTabRefresh(() => store.invalidate());
+  });
   return () => {
     u1();
     u2();
     u3();
+    u4();
     wired = false;
   };
 }

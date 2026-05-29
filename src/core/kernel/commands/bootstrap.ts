@@ -9,14 +9,28 @@ import { buildDay } from '../../engines/scheduler';
 import { emitOsRefresh } from '../../events/event-bus';
 import { afterFactWrite } from '../pipeline';
 
+const bootstrapInflight = new Map<string, Promise<void>>();
+
 export async function ensureDayBootstrapped(profile: OperatorProfile, date = todayKey()) {
-  await generateFullStackProtocol(profile, date);
-  await generateFullStackMissions(profile, date);
-  await ensureWeeklyReadingMission(profile, date);
-  await ensureDecisionFollowUpMission(date);
-  await ensureStudyMissionIfStale(profile, date);
-  await buildDay(profile, date);
-  await afterFactWrite({ type: 'DAY_BOOTSTRAPPED', date });
+  const inflight = bootstrapInflight.get(date);
+  if (inflight) return inflight;
+
+  const run = (async () => {
+    await generateFullStackProtocol(profile, date);
+    await generateFullStackMissions(profile, date);
+    await ensureWeeklyReadingMission(profile, date);
+    await ensureDecisionFollowUpMission(date);
+    await ensureStudyMissionIfStale(profile, date);
+    await buildDay(profile, date);
+    await afterFactWrite({ type: 'DAY_BOOTSTRAPPED', date });
+  })();
+
+  bootstrapInflight.set(date, run);
+  try {
+    await run;
+  } finally {
+    bootstrapInflight.delete(date);
+  }
 }
 
 export async function ensureStudyMissionIfStale(

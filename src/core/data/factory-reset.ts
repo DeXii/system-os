@@ -33,7 +33,8 @@ export async function resetLocalDatabaseOnly(): Promise<void> {
     const req = indexedDB.deleteDatabase(DB_NAME);
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
-    req.onblocked = () => resolve();
+    req.onblocked = () =>
+      reject(new Error('Закройте другие вкладки OS и повторите сброс базы'));
   });
   window.location.reload();
 }

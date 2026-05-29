@@ -37,12 +37,10 @@ export async function seedCuratedNutritionDb(force = false): Promise<{ ingredien
   const existingDish = await db.dishes.count();
 
   if (existingIng === 0 || shouldForce) {
-    await db.ingredients.clear();
     await db.ingredients.bulkPut(CURATED_INGREDIENTS);
   }
 
   if (existingDish === 0 || shouldForce) {
-    await db.dishes.clear();
     await db.dishes.bulkPut(CURATED_DISHES);
   }
 

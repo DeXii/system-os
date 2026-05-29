@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
+import { subscribeOsRefresh } from '@/core/events/event-bus';
 import { TASK_KEYS } from '@/content/task-keys';
 import { db, dateKeyDaysAgo } from '@/core/db';
 import {
   getBreathing7dSummary,
   getHrvBaseline14d,
+  getRegulationPractice14d,
   getRegulationStreak,
 } from '@/core/engines/regulation-metrics';
 import { findSlotByTaskKey } from '@/core/engines/week-schedule';
@@ -19,18 +22,20 @@ export function RegulationOpsSummary({ onRefresh }: Props) {
     breath: { resonant: 0, wimHof: 0, total: 0 },
     mindful7: 0,
     stress7: 0,
-    streak: 0,
+    practice14d: 0,
+    comboStreak: 0,
     baseline: null as number | null,
     queueHrv: null as string | null,
   });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const since = dateKeyDaysAgo(6);
     const hrv7 = await db.hrvEntries.where('date').aboveOrEqual(since).count();
     const mindful7 = await db.mindfulnessSessions.where('date').aboveOrEqual(since).count();
     const stress7 = await db.stressLogs.where('date').aboveOrEqual(since).count();
     const breath = await getBreathing7dSummary();
-    const streak = await getRegulationStreak();
+    const practice14d = await getRegulationPractice14d();
+    const comboStreak = await getRegulationStreak();
     const baseline = await getHrvBaseline14d();
     const slot = await findSlotByTaskKey(TASK_KEYS.regulationHrv);
     setStats({
@@ -38,16 +43,23 @@ export function RegulationOpsSummary({ onRefresh }: Props) {
       breath,
       mindful7,
       stress7,
-      streak,
+      practice14d,
+      comboStreak,
       baseline,
       queueHrv: slot ? `#${slot.rank} ${slot.title}` : null,
     });
     onRefresh?.();
-  };
+  }, [onRefresh]);
 
-  useEffect(() => {
-    load();
-  }, []);
+  useAsyncEffect(
+    async (signal) => {
+      await load();
+      if (signal.aborted) return;
+    },
+    [load]
+  );
+
+  useEffect(() => subscribeOsRefresh(() => void load()), [load]);
 
   return (
     <div className="panel">
@@ -70,7 +82,8 @@ export function RegulationOpsSummary({ onRefresh }: Props) {
         <div>Wim Hof: {stats.breath.wimHof}</div>
         <div>Mindfulness: {stats.mindful7}</div>
         <div>Stress logs: {stats.stress7}</div>
-        <div>Streak (HRV+дых+mind): {stats.streak} дн</div>
+        <div>Practice 14д (gate): {stats.practice14d}/14</div>
+        <div>Combo streak (HRV+дых+mind): {stats.comboStreak} дн</div>
       </div>
       <button type="button" className="btn btn-sm" style={{ marginTop: 8 }} onClick={load}>
         Обновить

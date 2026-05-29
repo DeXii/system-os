@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { TASK_KEYS } from '@/content/task-keys';
 import { getMindOpsSummary } from '@/core/engines/mind-metrics';
 import { findSlotByTaskKey } from '@/core/engines/week-schedule';
+import { subscribeOsRefresh } from '@/core/events/event-bus';
 
 interface Props {
   onRefresh?: () => void;
@@ -11,7 +13,7 @@ export function MindOpsSummary({ onRefresh }: Props) {
   const [stats, setStats] = useState<Awaited<ReturnType<typeof getMindOpsSummary>> | null>(null);
   const [hints, setHints] = useState<string[]>([]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setStats(await getMindOpsSummary());
     const queueHints: string[] = [];
     for (const key of [
@@ -26,11 +28,17 @@ export function MindOpsSummary({ onRefresh }: Props) {
     }
     setHints(queueHints);
     onRefresh?.();
-  };
+  }, [onRefresh]);
 
-  useEffect(() => {
-    load();
-  }, []);
+  useAsyncEffect(
+    async (signal) => {
+      await load();
+      if (signal.aborted) return;
+    },
+    [load]
+  );
+
+  useEffect(() => subscribeOsRefresh(() => void load()), [load]);
 
   if (!stats) return null;
 
@@ -50,7 +58,8 @@ export function MindOpsSummary({ onRefresh }: Props) {
         <div>Decision logs: {stats.decisions7d}</div>
         <div>Study: {stats.studySessions7d}</div>
         <div>Closure 14d: {stats.decisionClosurePct14d}%</div>
-        <div>Streak: {stats.streak} дн</div>
+        <div>Practice 14д (gate): {stats.streak}/14</div>
+        <div>Combo streak (chess+reflect): {stats.comboStreak} дн</div>
         <div>
           Чтение L3: {l3.read}/{l3.total}
         </div>

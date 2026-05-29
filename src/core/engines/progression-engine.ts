@@ -79,7 +79,7 @@ export function tierForWorkoutKind(
   return effectiveTier(levels, cat);
 }
 
-function setSucceeded(log: SetLog): boolean {
+export function setSucceeded(log: SetLog): boolean {
   if (log.measure === 'seconds' || log.targetSeconds != null) {
     const target = log.targetSeconds ?? log.targetReps;
     const actual = log.actualSeconds ?? log.actualReps;
@@ -104,9 +104,9 @@ function kindsForCategory(category: FitnessCategory): WorkoutKind[] {
 export async function recomputeFitnessLevels(): Promise<OperatorFitnessLevels> {
   const levels = await getFitnessLevels();
   const since = dateKeyDaysAgo(30);
-  const logs = (await db.setLogs.where('date').aboveOrEqual(since).toArray()).filter(
-    (l) => l.workoutKind
-  );
+  const logs = (await db.setLogs.where('date').aboveOrEqual(since).toArray())
+    .filter((l) => l.workoutKind)
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   const categories: FitnessCategory[] = ['hift', 'gpp', 'warmup', 'stretch'];
   const patch: Partial<OperatorFitnessLevels> = {};
@@ -123,13 +123,15 @@ export async function recomputeFitnessLevels(): Promise<OperatorFitnessLevels> {
       byPlan.set(l.workoutPlanId, arr);
     }
 
-    const sessionRates: number[] = [];
+    const sessionRates: { rate: number; lastDate: string }[] = [];
     for (const sets of byPlan.values()) {
       const ok = sets.filter(setSucceeded).length;
-      sessionRates.push(ok / sets.length);
+      const lastDate = sets.reduce((max, s) => (s.date > max ? s.date : max), sets[0]?.date ?? '');
+      sessionRates.push({ rate: ok / sets.length, lastDate });
     }
 
-    const recent = sessionRates.slice(-3);
+    sessionRates.sort((a, b) => a.lastDate.localeCompare(b.lastDate));
+    const recent = sessionRates.slice(-3).map((s) => s.rate);
     if (recent.length < 2) continue;
 
     const avg = recent.reduce((a, b) => a + b, 0) / recent.length;

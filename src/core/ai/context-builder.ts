@@ -14,13 +14,14 @@ import {
   getBreathing7dSummary,
   getHrvBaseline14d,
   getHrvTrend,
-  getRegulationStreak,
+  getRegulationPractice14d,
 } from '../engines/regulation-metrics';
 import {
   getChessRatingTrend,
   getMindOpsSummary,
   shouldThrottleCognitiveLoad,
 } from '../engines/mind-metrics';
+import { truncateUntrustedText } from './prompts/untrusted-text';
 import {
   getInfluenceOpsSummary,
   shouldThrottleInfluence,
@@ -295,7 +296,7 @@ async function buildDirectorContextUncached(
   const hrvTrend = await getHrvTrend(lookbackDays);
   const hrvBaseline = await getHrvBaseline14d();
   const breathing7d = await getBreathing7dSummary();
-  const regulationStreak = await getRegulationStreak();
+  const regulationStreak = await getRegulationPractice14d();
   const stressLogsInWindow = filterDated(
     await db.stressLogs.where('date').aboveOrEqual(since).toArray(),
     since
@@ -535,7 +536,7 @@ async function buildDirectorContextUncached(
       date: p.date,
       status: p.status,
       exerciseCount: p.exercises.length,
-      notes: p.notes,
+      notes: p.notes ? truncateUntrustedText(p.notes, 500) : undefined,
     })),
     allowedExerciseIds: allowedForActive,
     exerciseCatalog:

@@ -1,6 +1,6 @@
 import { db, uid } from '../../db';
 import type { AiAction, AiInsight, DirectorConfig, ModuleId } from '../../domain/types';
-import { emitKernel } from '../../events/event-bus';
+import { emitKernel, emitOsRefresh } from '../../events/event-bus';
 import { markBriefingDone, markDebriefDone } from '../../engines/command-compliance';
 import { applyDirectorActions as applyKernelActions } from '../../engines/os-kernel';
 import { callGroq, testProxyHealth } from '../groq-client';
@@ -13,6 +13,12 @@ import {
 } from '../director-tasks';
 import type { WorkoutContextOptions } from '../context-builder';
 import { todayKey } from '../../db';
+import { buildDirectorContext } from '../context-builder';
+import { ALL_DIRECTOR_ACTION_TYPES } from '../prompts/registry/task-registry';
+import {
+  parseContextSnapshot,
+  validateAndFilterActions,
+} from '../prompts/validators/validate-actions';
 import { buildDirectorPromptBundle, processDirectorResponse } from './director-router';
 import { setLastDirectorPrompt } from '@/stores/director-prompt-store';
 
@@ -140,11 +146,29 @@ export async function runDirectorTask(
       return result;
     }
 
-    const { text: cleanText, actions } = processDirectorResponse(
+    const { text: cleanText, actions, dropped, rawActionCount } = processDirectorResponse(
       result.text,
       bundle.contextJson,
       bundle.allowedActions
     );
+
+    if (dropped.length > 0) {
+      const sample = dropped
+        .slice(0, 3)
+        .map((d) => `${d.action.type}: ${d.reason}`)
+        .join('; ');
+      await emitKernel(
+        'director',
+        `DIRECTOR: отброшено ${dropped.length} действий (${sample})`,
+        'warn'
+      );
+    } else if (rawActionCount > 0 && actions.length === 0) {
+      await emitKernel(
+        'director',
+        `DIRECTOR: ${taskId} — все ${rawActionCount} действий отфильтрованы`,
+        'warn'
+      );
+    }
 
     const insightScope =
       scope === 'full' ? ('full' as const) : (scope as AiInsight['scope']);
@@ -172,6 +196,7 @@ export async function runDirectorTask(
     if (scope === 'command') {
       if (taskId === 'morningBriefing') await markBriefingDone(todayKey());
       if (taskId === 'eveningDebrief') await markDebriefDone(todayKey());
+      emitOsRefresh();
     }
 
     return { ok: true, insight };
@@ -182,8 +207,35 @@ export async function runDirectorTask(
   }
 }
 
-export async function applyAiActions(actions: AiAction[]): Promise<void> {
-  await applyKernelActions(actions);
+export async function applyAiActions(
+  actions: AiAction[]
+): Promise<{ applied: number; dropped: number }> {
+  if (!actions.length) return { applied: 0, dropped: 0 };
+
+  const contextJson = await buildDirectorContext('full', 7);
+  const context = parseContextSnapshot(contextJson);
+  const { actions: validated, dropped } = validateAndFilterActions(actions, {
+    allowedActions: ALL_DIRECTOR_ACTION_TYPES,
+    context,
+  });
+
+  if (dropped.length > 0) {
+    const preview = dropped
+      .slice(0, 3)
+      .map((d) => `${d.action.type}: ${d.reason}`)
+      .join('; ');
+    await emitKernel(
+      'director',
+      `Apply: отброшено ${dropped.length} действий — ${preview}`,
+      'warn'
+    );
+  }
+
+  if (validated.length) {
+    await applyKernelActions(validated);
+  }
+
+  return { applied: validated.length, dropped: dropped.length };
 }
 
 export async function testDirectorConnection(): Promise<{ ok: boolean; message: string }> {

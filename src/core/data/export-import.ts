@@ -53,6 +53,7 @@ export const EXPORT_TABLE_KEYS = [
   'shoppingLists',
   'customIngredients',
   'customDishes',
+  'glossaryCache',
 ] as const;
 
 type ExportTableKey = (typeof EXPORT_TABLE_KEYS)[number];
@@ -108,6 +109,7 @@ const TABLE_MAP: Record<ExportTableKey, keyof typeof db> = {
   shoppingLists: 'shoppingLists',
   customIngredients: 'customIngredients',
   customDishes: 'customDishes',
+  glossaryCache: 'glossaryCache',
 };
 
 function getTable(key: ExportTableKey) {
@@ -179,6 +181,31 @@ export async function exportAllData(): Promise<string> {
   return JSON.stringify(await exportSnapshotObject(), null, 2);
 }
 
+/** Upsert snapshot rows without clearing tables (union-safe cloud merge). */
+export async function applyMergedSnapshot(snapshot: Record<string, unknown>): Promise<void> {
+  const valid = validateImportPayload(snapshot);
+  if (!valid.ok) throw new Error(valid.error);
+
+  const { pauseCloudSync, resumeCloudSync, scheduleCloudPush, isCloudSyncEnabled } =
+    await import('../sync/cloud-sync');
+
+  pauseCloudSync();
+  try {
+    await db.transaction('rw', db.tables, async () => {
+      for (const [key, tableName] of Object.entries(TABLE_MAP)) {
+        const rows = snapshot[key];
+        if (!Array.isArray(rows) || !rows.length) continue;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (db[tableName] as any).bulkPut(rows);
+      }
+    });
+  } finally {
+    resumeCloudSync();
+  }
+
+  if (isCloudSyncEnabled()) scheduleCloudPush();
+}
+
 export async function importAllData(json: string): Promise<void> {
   const parsed = JSON.parse(json) as Record<string, unknown>;
   const valid = validateImportPayload(parsed);
@@ -208,11 +235,15 @@ export async function importAllData(json: string): Promise<void> {
   if (isCloudSyncEnabled()) scheduleCloudPush();
 }
 
-export function downloadExportJson(json: string, date = new Date()): void {
+export function downloadExportJson(
+  json: string,
+  date = new Date(),
+  filename?: string
+): void {
   const blob = new Blob([json], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `ayanakoji-export-${date.toISOString().slice(0, 10)}.json`;
+  a.download = filename ?? `ayanakoji-export-${date.toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
 }

@@ -3,12 +3,14 @@ import { db } from '../db';
 import {
   EXPORT_TABLE_KEYS,
   EXPORT_VERSION,
+  applyMergedSnapshot,
   exportSnapshotObject,
   getDataSnapshotStats,
   hasSnapshotData,
   importAllData,
   sanitizeForFirestore,
 } from '../data/export-import';
+import { mergeSnapshots, type ExportSnapshot } from '../data/snapshot-merge';
 import { getCurrentUser } from '../firebase/auth';
 import { getFirestoreDb, isFirebaseConfigured } from '../firebase/config';
 import { getDeviceId, getGlobalRevision } from '../db/write';
@@ -231,7 +233,18 @@ export async function pullFromCloud(): Promise<
       }
     }
 
-    await importAllData(JSON.stringify(payload));
+    const localHasData = await localHasOsData();
+    if (localHasData) {
+      const localSnapshot = (await exportSnapshotObject()) as ExportSnapshot;
+      const merged = mergeSnapshots(localSnapshot, payload as ExportSnapshot);
+      await applyMergedSnapshot(merged);
+    } else {
+      await importAllData(JSON.stringify(payload));
+    }
+    const { invalidateDerivedCaches } = await import('../cache/invalidate');
+    const { emitOsRefresh } = await import('../events/event-bus');
+    invalidateDerivedCaches('cloud_pull');
+    emitOsRefresh();
     setStatus('synced');
     return { ok: true, hadData: true };
   } catch (e) {
@@ -272,6 +285,12 @@ export async function pushToCloud(): Promise<{ ok: boolean; error?: string }> {
   }
   if (cloudSyncPaused) return { ok: true };
 
+  const { acquireCloudPushLease, releaseCloudPushLease, broadcastCloudPush } =
+    await import('./tab-sync');
+  if (!acquireCloudPushLease()) {
+    return { ok: true };
+  }
+
   pushInFlight = true;
   pushPending = false;
   setStatus('syncing');
@@ -294,6 +313,7 @@ export async function pushToCloud(): Promise<{ ok: boolean; error?: string }> {
       })
     );
     lastRemoteUpdatedAt = updatedAt;
+    broadcastCloudPush();
     setStatus('synced');
     return { ok: true };
   } catch (e) {
@@ -301,6 +321,7 @@ export async function pushToCloud(): Promise<{ ok: boolean; error?: string }> {
     setStatus('error', msg);
     return { ok: false, error: msg };
   } finally {
+    releaseCloudPushLease();
     pushInFlight = false;
     if (pushPending) {
       pushPending = false;

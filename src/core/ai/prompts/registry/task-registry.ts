@@ -8,7 +8,7 @@ const MISSION_PROTOCOL: DirectorTaskPromptConfig['allowedActions'] = [
   'log_note',
 ];
 
-const ALL_ACTIONS: DirectorTaskPromptConfig['allowedActions'] = [
+export const ALL_DIRECTOR_ACTION_TYPES: DirectorTaskPromptConfig['allowedActions'] = [
   'add_mission',
   'add_protocol',
   'log_note',
@@ -162,7 +162,7 @@ export const TASK_REGISTRY: Record<TaskId, DirectorTaskPromptConfig> = {
     templateId: 'planning',
     templateParams: { kind: 'free' },
     outputFormat: 'minimal',
-    allowedActions: ALL_ACTIONS,
+    allowedActions: ALL_DIRECTOR_ACTION_TYPES,
     constraintIds: ['equipment', 'readiness', 'training', 'communication'],
   },
   rescheduleDay: {

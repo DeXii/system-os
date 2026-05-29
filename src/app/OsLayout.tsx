@@ -63,16 +63,24 @@ export function OsLayout() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  const runPaletteDirector = useCallback(
+    async (taskId: 'morningBriefing' | 'eveningDebrief') => {
+      await runDirectorTask(taskId, { scope: 'command' });
+      await refresh();
+    },
+    [refresh]
+  );
+
   const paletteActions = useCommandPaletteNavigation(setModule, [
     {
       id: 'briefing',
       label: 'DIRECTOR: Утренний briefing',
-      run: () => runDirectorTask('morningBriefing', { scope: 'command' }),
+      run: () => void runPaletteDirector('morningBriefing'),
     },
     {
       id: 'debrief',
       label: 'DIRECTOR: Вечерний debrief',
-      run: () => runDirectorTask('eveningDebrief', { scope: 'command' }),
+      run: () => void runPaletteDirector('eveningDebrief'),
     },
     {
       id: 'toggle-dir',

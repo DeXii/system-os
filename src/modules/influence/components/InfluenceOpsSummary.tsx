@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { TASK_KEYS } from '@/content/task-keys';
 import { getInfluenceOpsSummary } from '@/core/engines/influence-metrics';
 import { findSlotByTaskKey } from '@/core/engines/week-schedule';
+import { subscribeOsRefresh } from '@/core/events/event-bus';
 interface Props {
   onRefresh?: () => void;
 }
@@ -12,7 +14,7 @@ export function InfluenceOpsSummary({ onRefresh }: Props) {
   );
   const [hints, setHints] = useState<string[]>([]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setStats(await getInfluenceOpsSummary());
     const queueHints: string[] = [];
     for (const key of [
@@ -27,11 +29,17 @@ export function InfluenceOpsSummary({ onRefresh }: Props) {
     }
     setHints(queueHints);
     onRefresh?.();
-  };
+  }, [onRefresh]);
 
-  useEffect(() => {
-    load();
-  }, []);
+  useAsyncEffect(
+    async (signal) => {
+      await load();
+      if (signal.aborted) return;
+    },
+    [load]
+  );
+
+  useEffect(() => subscribeOsRefresh(() => void load()), [load]);
 
   if (!stats) return null;
 

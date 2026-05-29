@@ -34,21 +34,29 @@ export async function generateFullStackProtocol(
   profile: OperatorProfile,
   date = todayKey()
 ): Promise<ProtocolItem[]> {
-  const existing = await db.protocolItems.where('date').equals(date).toArray();
-  if (existing.length > 0) {
-    return mergeExistingProtocol(existing, profile, date);
-  }
+  return db.transaction('rw', db.protocolItems, async () => {
+    const existing = await db.protocolItems.where('date').equals(date).toArray();
+    if (existing.length > 0) {
+      return mergeExistingProtocol(existing, profile, date);
+    }
 
-  const specs = buildProtocolSpecs(profile);
-  const items: ProtocolItem[] = specs.map((s) => ({
-    ...s,
-    id: uid(),
-    date,
-    done: false,
-  }));
+    const specs = buildProtocolSpecs(profile);
+    const items: ProtocolItem[] = specs.map((s) => ({
+      ...s,
+      id: uid(),
+      date,
+      done: false,
+    }));
 
-  await db.protocolItems.bulkAdd(items);
-  return items;
+    const recheck = await db.protocolItems.where('date').equals(date).count();
+    if (recheck > 0) {
+      const rows = await db.protocolItems.where('date').equals(date).toArray();
+      return mergeExistingProtocol(rows, profile, date);
+    }
+
+    await db.protocolItems.bulkAdd(items);
+    return items;
+  });
 }
 
 async function mergeExistingProtocol(

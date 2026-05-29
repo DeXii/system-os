@@ -11,21 +11,29 @@ export async function generateFullStackMissions(
   profile: OperatorProfile,
   date = todayKey()
 ): Promise<Mission[]> {
-  const existing = await db.missions.where('date').equals(date).toArray();
-  if (existing.length > 0) {
-    return mergeExistingMissions(existing, profile, date);
-  }
+  return db.transaction('rw', db.missions, async () => {
+    const existing = await db.missions.where('date').equals(date).toArray();
+    if (existing.length > 0) {
+      return mergeExistingMissions(existing, profile, date);
+    }
 
-  const specs = buildMissionSpecs(profile);
-  const missions: Mission[] = specs.map((s) => ({
-    ...s,
-    id: uid(),
-    date,
-    status: 'pending',
-  }));
+    const specs = buildMissionSpecs(profile);
+    const missions: Mission[] = specs.map((s) => ({
+      ...s,
+      id: uid(),
+      date,
+      status: 'pending',
+    }));
 
-  await db.missions.bulkAdd(missions);
-  return missions;
+    const recheck = await db.missions.where('date').equals(date).count();
+    if (recheck > 0) {
+      const rows = await db.missions.where('date').equals(date).toArray();
+      return mergeExistingMissions(rows, profile, date);
+    }
+
+    await db.missions.bulkAdd(missions);
+    return missions;
+  });
 }
 
 async function mergeExistingMissions(

@@ -12,6 +12,48 @@ export async function ensureLibrarySeeded(): Promise<void> {
   await db.libraryBooks.bulkAdd(seed);
 }
 
+export const LIBRARY_PAGE_SIZE = 50;
+
+export type LibraryBookFilter = 'all' | 'unread' | 'read';
+
+function matchesBookFilter(book: LibraryBook, filter: LibraryBookFilter): boolean {
+  if (filter === 'unread') return book.status !== 'read';
+  if (filter === 'read') return book.status === 'read';
+  return true;
+}
+
+export interface LoadBooksPageParams {
+  level: BookLevel | 'all';
+  filter: LibraryBookFilter;
+  offset: number;
+  limit?: number;
+}
+
+export async function loadBooksPage(params: LoadBooksPageParams): Promise<{
+  books: LibraryBook[];
+  total: number;
+  hasMore: boolean;
+}> {
+  await ensureLibrarySeeded();
+  const limit = params.limit ?? LIBRARY_PAGE_SIZE;
+  const query =
+    params.level === 'all'
+      ? db.libraryBooks.filter((b) => matchesBookFilter(b, params.filter))
+      : db.libraryBooks
+          .where('level')
+          .equals(params.level)
+          .filter((b) => matchesBookFilter(b, params.filter));
+
+  const total = await query.count();
+  const books = await query.offset(params.offset).limit(limit).toArray();
+  books.sort((a, b) => a.level - b.level || a.title.localeCompare(b.title));
+  return {
+    books,
+    total,
+    hasMore: params.offset + books.length < total,
+  };
+}
+
 export async function getBooksByLevel(level: BookLevel): Promise<LibraryBook[]> {
   await ensureLibrarySeeded();
   return db.libraryBooks.where('level').equals(level).toArray();

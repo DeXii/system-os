@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { todayKey } from '@/core/db';
 import { afterBreathingComplete } from '@/core/engines/os-kernel';
 import { RESONANT_PRESETS } from '@/content/regulation-protocols';
@@ -18,52 +18,63 @@ export function ResonantBreathLive({ onComplete }: Props) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [elapsedSec, setElapsedSec] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const elapsedRef = useRef(0);
+  const durationMinRef = useRef(durationMin);
+  const presetRef = useRef(preset);
+  const onCompleteRef = useRef(onComplete);
 
   const totalSec = durationMin * 60;
 
   useEffect(() => {
+    durationMinRef.current = durationMin;
+    presetRef.current = preset;
+    onCompleteRef.current = onComplete;
+  }, [durationMin, preset, onComplete]);
+
+  const stop = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setRunning(false);
+    setPhase('idle');
+  }, []);
+
+  const finish = useCallback(async () => {
+    stop();
+    const p = presetRef.current;
+    const mins = Math.max(1, Math.round(elapsedRef.current / 60) || durationMinRef.current);
+    const session: Omit<BreathingSession, 'id'> = {
+      date: todayKey(),
+      mode: 'resonant',
+      durationMin: mins,
+      breathsPerMin: p.breathsPerMin,
+    };
+    await afterBreathingComplete(session);
+    onCompleteRef.current();
+  }, [stop]);
+
+  useEffect(() => {
     if (!running) return;
     timerRef.current = setInterval(() => {
-      setElapsedSec((s) => {
-        const next = s + 1;
-        if (next >= totalSec) {
-          void finish();
-          return s;
-        }
-        const inhale = preset.inhaleSec;
-        const cycle = inhale + preset.exhaleSec;
-        const pos = next % cycle;
-        setPhase(pos < inhale ? 'inhale' : 'exhale');
-        return next;
-      });
+      elapsedRef.current += 1;
+      const next = elapsedRef.current;
+      setElapsedSec(next);
+      const inhale = presetRef.current.inhaleSec;
+      const cycle = inhale + presetRef.current.exhaleSec;
+      const pos = next % cycle;
+      setPhase(pos < inhale ? 'inhale' : 'exhale');
+      if (next >= durationMinRef.current * 60) {
+        void finish();
+      }
     }, 1000);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [running, totalSec, preset]);
+  }, [running, finish]);
 
   const start = () => {
+    elapsedRef.current = 0;
     setElapsedSec(0);
     setPhase('inhale');
     setRunning(true);
-  };
-
-  const stop = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setRunning(false);
-    setPhase('idle');
-  };
-
-  const finish = async () => {
-    stop();
-    const session: Omit<BreathingSession, 'id'> = {
-      date: todayKey(),
-      mode: 'resonant',
-      durationMin: Math.max(1, Math.round(elapsedSec / 60) || durationMin),
-      breathsPerMin: preset.breathsPerMin,
-    };
-    await afterBreathingComplete(session);
-    onComplete();
   };
 
   const progress = totalSec > 0 ? Math.min(100, (elapsedSec / totalSec) * 100) : 0;

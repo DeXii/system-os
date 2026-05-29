@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { db } from '@/core/db';
 import { applyAiActions, runDirectorTask } from '@/core/ai/director-service';
 import { useDirectorStatus } from '@/hooks/useDirectorStatus';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import type { TaskId } from '@/core/ai/director-tasks';
 import { resolveScope } from '@/core/ai/director-tasks';
 import type { AiAction, AiInsight, ModuleId } from '@/core/domain/types';
@@ -32,10 +33,21 @@ export function useDirectorRunner({
     setHistory(filtered);
   }, [scope, historyLimit]);
 
-  useEffect(() => {
-    if (!loadHistory) return;
-    void refreshHistory();
-  }, [loadHistory, refreshHistory]);
+  useAsyncEffect(
+    async (signal) => {
+      if (!loadHistory) return;
+      const all = await db.aiInsights.orderBy('createdAt').reverse().limit(historyLimit).toArray();
+      if (signal.aborted) return;
+      const filtered =
+        scope === 'full'
+          ? all
+          : all.filter((i) => i.scope === scope || i.scope === 'full');
+      setHistory(filtered);
+    },
+    [loadHistory, historyLimit, scope]
+  );
+
+  const runGenRef = useRef(0);
 
   const selectInsight = useCallback((item: AiInsight) => {
     setInsight(item);
@@ -53,6 +65,7 @@ export function useDirectorRunner({
         setInsight(null);
         return { ok: false as const, error: 'offline' };
       }
+      const gen = ++runGenRef.current;
       setLoading(true);
       setInsight(null);
       setOutput('Сбор контекста...');
@@ -61,8 +74,11 @@ export function useDirectorRunner({
         const res = await runDirectorTask(taskId, {
           scope: taskScope,
           userMessage,
-          onProgress: setOutput,
+          onProgress: (msg) => {
+            if (runGenRef.current === gen) setOutput(msg);
+          },
         });
+        if (runGenRef.current !== gen) return res;
         if (!res.ok) {
           setOutput(res.error);
           setInsight(null);
@@ -73,12 +89,13 @@ export function useDirectorRunner({
         void refreshHistory();
         return res;
       } catch (e) {
+        if (runGenRef.current !== gen) return { ok: false as const, error: 'aborted' };
         const msg = e instanceof Error ? e.message : 'Ошибка DIRECTOR';
         setOutput(msg);
         setInsight(null);
         return { ok: false as const, error: msg };
       } finally {
-        setLoading(false);
+        if (runGenRef.current === gen) setLoading(false);
       }
     },
     [status, scope, refreshHistory]

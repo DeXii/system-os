@@ -2,8 +2,8 @@ import { db, dateKeyDaysAgo, todayKey } from '../db';
 import { computeReadiness } from './readiness';
 import { confirmStageAdvanceKernel, confirmStageDemotionKernel } from './os-kernel';
 import { emitKernel } from '../events/event-bus';
-import { getBreathing7dSummary, getRegulationStreak } from './regulation-metrics';
-import { getMindStreak, getScenarioCount7d, shouldThrottleCognitiveLoad } from './mind-metrics';
+import { getBreathing7dSummary, getRegulationPractice14d } from './regulation-metrics';
+import { getMindPractice14d, getScenarioCount7d, shouldThrottleCognitiveLoad } from './mind-metrics';
 import {
   appendReadinessHistory,
   buildReadinessHistoryEntry,
@@ -87,8 +87,8 @@ async function buildStageGateContext(profile: OperatorProfile): Promise<StageGat
   const miCount14d = influenceEntries.filter((e) => e.type === 'mi').length;
 
   const [regulationStreak, mindStreak] = await Promise.all([
-    getRegulationStreak(),
-    getMindStreak(),
+    getRegulationPractice14d(),
+    getMindPractice14d(),
   ]);
 
   const scenarios7d = await getScenarioCount7d();
@@ -222,7 +222,10 @@ export async function confirmStageAdvance(
       stageStreaks: resetStreaks,
       globalStreak: 0,
       qualifyingDays: 0,
+      readinessHistory: [],
+      lastEvaluatedDate: '',
     });
+    await evaluateStageProgression(updated);
     return updated;
   }
 
@@ -261,7 +264,10 @@ export async function confirmStageDemotion(
       stageStreaks: resetStreaks,
       globalStreak: 0,
       qualifyingDays: 0,
+      readinessHistory: [],
+      lastEvaluatedDate: '',
     });
+    await evaluateStageProgression(updated);
     return updated;
   }
 

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import type { DomainEventRecord } from '@/core/domain/contracts/events';
 import { listDomainEventsForReplay } from '@/core/events/replay';
 
@@ -12,9 +13,13 @@ export function DomainEventsPanel() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useAsyncEffect(
+    async (signal) => {
+      await load();
+      if (signal.aborted) return;
+    },
+    [load]
+  );
 
   return (
     <section className="panel">

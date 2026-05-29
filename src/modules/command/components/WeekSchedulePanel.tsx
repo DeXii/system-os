@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { todayKey, tomorrowKey, weekdayIndex } from '@/core/db';
 import { completeScheduleSlot } from '@/core/engines/os-kernel';
 import {
@@ -33,9 +34,21 @@ export function WeekSchedulePanel({ onChanged }: Props) {
     setWeekCounts(counts);
   }, [today]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAsyncEffect(
+    async (signal) => {
+      const q = await buildTodayQueue(today);
+      if (signal.aborted) return;
+      setQueue(q);
+      const template = await getWeekTemplate();
+      if (signal.aborted) return;
+      const counts: Record<number, number> = {};
+      (Object.keys(template.slots) as unknown as WeekdayIndex[]).forEach((d) => {
+        counts[d] = template.slots[d]?.length ?? 0;
+      });
+      setWeekCounts(counts);
+    },
+    [today]
+  );
 
   const toggleDone = async (slot: ScheduleSlot) => {
     if (slot.status === 'done') return;

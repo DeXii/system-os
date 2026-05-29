@@ -20,15 +20,23 @@ export async function afterWorkoutComplete(plan: WorkoutPlan): Promise<void> {
           ? 'recovery'
           : 'strength';
 
-  await db.trainingSessions.add({
-    id: uid(),
-    date: today,
-    type: sessionType,
-    durationMin: plan.exercises.reduce((a, e) => a + e.sets * 2, 15),
-    intensity: kind === 'hift' ? 'high' : 'medium',
-    notes: `${kind} LIVE`,
-    workoutKind: kind,
-  });
+  const existingSession = await db.trainingSessions
+    .where('date')
+    .equals(today)
+    .filter((s) => s.workoutPlanId === plan.id)
+    .first();
+  if (!existingSession) {
+    await db.trainingSessions.add({
+      id: uid(),
+      date: today,
+      type: sessionType,
+      durationMin: plan.exercises.reduce((a, e) => a + e.sets * 2, 15),
+      intensity: kind === 'hift' ? 'high' : 'medium',
+      notes: `${kind} LIVE`,
+      workoutKind: kind,
+      workoutPlanId: plan.id,
+    });
+  }
 
   if (kind !== 'legacy') {
     const { incrementWorkoutTypeStat } = await import('../../engines/workout-stats');
@@ -57,15 +65,23 @@ export async function afterCardioComplete(
   const session = await db.cardioSessions.get(sessionId);
   if (!session) return;
   await db.cardioSessions.update(sessionId, patch);
-  await db.trainingSessions.add({
-    id: uid(),
-    date: session.date,
-    type: 'cardio',
-    durationMin: patch.durationMin ?? session.durationMin,
-    intensity: session.kind === 'cardio_intense' ? 'high' : 'low',
-    notes: session.notes,
-    workoutKind: session.kind,
-  });
+  const existingSession = await db.trainingSessions
+    .where('date')
+    .equals(session.date)
+    .filter((s) => s.cardioSessionId === sessionId)
+    .first();
+  if (!existingSession) {
+    await db.trainingSessions.add({
+      id: uid(),
+      date: session.date,
+      type: 'cardio',
+      durationMin: patch.durationMin ?? session.durationMin,
+      intensity: session.kind === 'cardio_intense' ? 'high' : 'low',
+      notes: session.notes,
+      workoutKind: session.kind,
+      cardioSessionId: sessionId,
+    });
+  }
   const { incrementWorkoutTypeStat } = await import('../../engines/workout-stats');
   await incrementWorkoutTypeStat(session.kind, session.date);
   await emitDomainEvent({ type: 'CARDIO_LOGGED', date: session.date, sessionId });

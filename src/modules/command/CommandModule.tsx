@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { db, todayKey, uid } from '@/core/db';
 import {
   getOrCreateDayReport,
@@ -9,6 +10,7 @@ import {
   type ComplianceSnapshot,
 } from '@/core/engines/command-compliance';
 import { ensureDayBootstrapped } from '@/core/engines/os-kernel';
+import { completeByTaskKey } from '@/core/kernel/commands/complete';
 import { applyAiActions } from '@/core/ai/director-service';
 import { ActionCards } from '@/modules/director/components/ActionCards';
 import { getRuleHints } from '@/core/engines/readiness';
@@ -88,9 +90,13 @@ export function CommandModule({ profile, readiness, onRefresh, onOpenIntegration
     setCompliance(await getTodayCompliance(today));
   }, [localProfile, today]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAsyncEffect(
+    async (signal) => {
+      await load();
+      if (signal.aborted) return;
+    },
+    [load]
+  );
 
   const afterDataChange = async () => {
     await refreshDayReportCompliance(today);
@@ -102,14 +108,22 @@ export function CommandModule({ profile, readiness, onRefresh, onOpenIntegration
   };
 
   const toggleMission = async (m: Mission) => {
-    const status = m.status === 'done' ? 'pending' : 'done';
-    await db.missions.update(m.id, { status });
-    if (status === 'done') await emitKernel('command', `Миссия: ${m.title}`, 'success');
+    if (m.status !== 'done' && m.taskKey) {
+      await completeByTaskKey(m.taskKey, today, 'command');
+      await afterDataChange();
+      return;
+    }
+    await db.missions.update(m.id, { status: 'pending' });
     await afterDataChange();
   };
 
   const toggleProtocol = async (p: ProtocolItem) => {
-    await db.protocolItems.update(p.id, { done: !p.done });
+    if (!p.done && p.taskKey) {
+      await completeByTaskKey(p.taskKey, today, 'command');
+      await afterDataChange();
+      return;
+    }
+    await db.protocolItems.update(p.id, { done: false });
     await afterDataChange();
   };
 

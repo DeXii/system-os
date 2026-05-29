@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { INGREDIENT_CATEGORY_LABELS } from '@/core/domain/nutrition-types';
 import type { IngredientCategory, ShoppingList, ShoppingListItem } from '@/core/domain/nutrition-types';
 import { getActivePlanState } from '@/core/engines/meal-planning-engine';
@@ -32,9 +33,13 @@ export function ShoppingListPanel({ reloadToken, onBump, todayIngredientIds }: P
     if (l) setSummary(getShoppingListSummary(l.items));
   };
 
-  useEffect(() => {
-    void load();
-  }, [reloadToken]);
+  useAsyncEffect(
+    async (signal) => {
+      await load();
+      if (signal.aborted) return;
+    },
+    [reloadToken]
+  );
 
   const generate = async () => {
     const plan = await getActivePlanState();

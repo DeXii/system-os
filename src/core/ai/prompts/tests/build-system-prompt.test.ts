@@ -16,7 +16,8 @@ describe('buildCorePrompt', () => {
     expect(core).toContain('SAFETY OVERRIDE');
     expect(core).toContain('NO FILLER');
     expect(core).toContain('LAYER DISCIPLINE');
-    expect(core.length).toBeLessThan(1500);
+    expect(core).toContain('UNTRUSTED USER DATA');
+    expect(core.length).toBeLessThan(1650);
     expect(core).not.toContain('add_mission');
     expect(core).not.toContain('set_workout_plan');
     expect(core).not.toContain('Утренний briefing');
@@ -69,7 +70,7 @@ describe('buildSystemPrompt', () => {
 
   it('morning briefing stays within length budget', () => {
     const prompt = buildSystemPrompt('morningBriefing');
-    expect(prompt.length).toBeLessThan(2600);
+    expect(prompt.length).toBeLessThan(2750);
     expect(prompt).toContain('add_mission');
     expect(prompt).not.toContain('set_workout_plan');
   });
@@ -84,6 +85,6 @@ describe('buildSystemPrompt', () => {
   it('deep analysis keeps required actions', () => {
     const prompt = buildSystemPrompt('deepAnalysis14d');
     expect(prompt).toContain('add_mission');
-    expect(prompt.length).toBeLessThan(2800);
+    expect(prompt.length).toBeLessThan(2950);
   });
 });

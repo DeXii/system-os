@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { getNutritionStreak, getConsistencyScore } from '@/core/engines/nutrition-metrics';
 import { getActiveGoal } from '@/core/engines/nutrition-goal-engine';
 
@@ -18,9 +19,13 @@ export function NutritionOpsSummary({ reloadToken }: Props) {
     setGoalLabel(g?.goalType ?? 'не задана');
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load, reloadToken]);
+  useAsyncEffect(
+    async (signal) => {
+      await load();
+      if (signal.aborted) return;
+    },
+    [load, reloadToken]
+  );
 
   return (
     <div className="panel" style={{ marginBottom: 12 }}>

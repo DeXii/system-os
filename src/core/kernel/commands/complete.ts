@@ -7,7 +7,7 @@ import {
   getSlotsForDate,
   updateSlotStatus,
 } from '../../engines/week-schedule';
-import { emitDomainEvent, emitKernel, emitOsRefresh } from '../../events/event-bus';
+import { emitKernel, emitOsRefresh } from '../../events/event-bus';
 import { afterFactWrite } from '../pipeline';
 
 const BREATHING_ALIASES: Record<string, string[]> = {
@@ -81,7 +81,7 @@ export async function completeByTaskKey(
   if (mission) {
     await db.missions.update(mission.id, { status: 'done' });
     await refreshDayReportCompliance(date);
-    await emitDomainEvent({
+    await afterFactWrite({
       type: 'MISSION_COMPLETED',
       date,
       taskKey,
@@ -101,7 +101,7 @@ export async function completeByTaskKey(
   if (protocol) {
     await db.protocolItems.update(protocol.id, { done: true });
     await refreshDayReportCompliance(date);
-    await emitDomainEvent({
+    await afterFactWrite({
       type: 'PROTOCOL_COMPLETED',
       date,
       taskKey,

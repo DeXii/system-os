@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 
 import { MEAL_PLAN_TEMPLATES } from '@/content/nutrition/meal-plans';
 
@@ -120,9 +121,13 @@ export function MealPlanPanel({
 
 
 
-  useEffect(() => {
-    void load();
-  }, [reloadToken]);
+  useAsyncEffect(
+    async (signal) => {
+      await load();
+      if (signal.aborted) return;
+    },
+    [reloadToken]
+  );
 
   useEffect(() => {
     setDayIndex(activePlanDayIndex);

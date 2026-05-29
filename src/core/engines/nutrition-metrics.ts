@@ -1,4 +1,4 @@
-import { db, dateKeyDaysAgo, todayKey } from '@/core/db';
+import { db, dateKeyDaysAgo, todayKey, uid } from '@/core/db';
 import type { NutritionDay } from '@/core/domain/nutrition-types';
 import { getActiveGoal } from './nutrition-goal-engine';
 
@@ -28,6 +28,8 @@ export async function aggregateDay(date: string): Promise<NutritionDay> {
   const goal = await getActiveGoal();
   const proteinTarget = goal?.targetProtein ?? 100;
   const proteinRatio = protein / proteinTarget;
+  const calTarget =
+    goal?.targetCalories && goal.targetCalories > 0 ? goal.targetCalories : 2200;
 
   const day: NutritionDay = {
     id: existing?.id ?? `nd-${date}`,
@@ -39,7 +41,7 @@ export async function aggregateDay(date: string): Promise<NutritionDay> {
     fats,
     carbs,
     recoveryScore: Math.min(100, Math.round(proteinRatio * 60 + (existing?.recoveryScore ?? 40) * 0.4)),
-    energyScore: Math.min(100, Math.round((calories / (goal?.targetCalories ?? 2200)) * 80)),
+    energyScore: Math.min(100, Math.round((calories / calTarget) * 80)),
   };
 
   await db.nutritionDays.put(day);
@@ -62,7 +64,13 @@ export async function syncDailyLogNutrition(date: string): Promise<void> {
   const existing = await db.dailyLogs.where('date').equals(date).first();
   if (existing) {
     await db.dailyLogs.update(existing.id, { nutritionOk: ok });
+    return;
   }
+  await db.dailyLogs.add({
+    id: uid(),
+    date,
+    nutritionOk: ok,
+  });
 }
 
 export async function getNutritionStreak(): Promise<number> {

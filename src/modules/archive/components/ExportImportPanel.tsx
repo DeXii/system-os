@@ -72,7 +72,7 @@ export function ExportImportPanel({ onRefresh }: Props) {
 
       if (
         !window.confirm(
-          `Импорт полностью заменит все данные OS (локальный кэш и облако).${versionNote}\n\nПродолжить?`
+          `Импорт полностью заменит все данные OS (локальный кэш и облако).${versionNote}\n\nПеред импортом будет скачан резервный JSON.\n\nПродолжить?`
         )
       ) {
         return;
@@ -81,6 +81,12 @@ export function ExportImportPanel({ onRefresh }: Props) {
       setBusy(true);
       setMsg('');
       try {
+        const backupJson = await exportAllData();
+        downloadExportJson(
+          backupJson,
+          new Date(),
+          `ayanakoji-backup-before-import-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`
+        );
         await importAllData(text);
         emitOsRefresh();
         onRefresh?.();

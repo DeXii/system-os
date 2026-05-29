@@ -53,7 +53,24 @@ export async function getTodayCompliance(date = todayKey()): Promise<ComplianceS
 
 export async function getOrCreateDayReport(date = todayKey()): Promise<DayReport> {
   const existing = await db.dayReports.where('date').equals(date).first();
-  if (existing) return existing;
+  if (existing) {
+    const snap = await getTodayCompliance(date);
+    if (
+      existing.protocolPct !== snap.protocolPct ||
+      existing.missionPct !== snap.missionPct ||
+      existing.compliance !== snap.compliance
+    ) {
+      const updated: DayReport = {
+        ...existing,
+        protocolPct: snap.protocolPct,
+        missionPct: snap.missionPct,
+        compliance: snap.compliance,
+      };
+      await db.dayReports.put(updated);
+      return updated;
+    }
+    return existing;
+  }
 
   const snap = await getTodayCompliance(date);
   const report: DayReport = {

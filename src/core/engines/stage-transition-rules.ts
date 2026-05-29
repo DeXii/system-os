@@ -108,7 +108,6 @@ function evaluateRegulationToMind(ctx: StageGateContext): StageGateCriterion[] {
     readiness,
     complianceAvg7d,
     debriefRate7d,
-    regulationStreak,
     resonantBreath7d,
     hrvDays7d,
     readinessHistory,
@@ -126,8 +125,8 @@ function evaluateRegulationToMind(ctx: StageGateContext): StageGateCriterion[] {
     criterion(
       'regulation_practice',
       'Regulation practice 14д',
-      regulationStreak14 >= 4 || regulationStreak >= 4,
-      Math.max(regulationStreak14, regulationStreak),
+      regulationStreak14 >= 4,
+      regulationStreak14,
       '≥4/14',
       'blocker'
     ),
@@ -142,7 +141,6 @@ function evaluateMindToInfluence(ctx: StageGateContext): StageGateCriterion[] {
   const {
     readiness,
     complianceAvg7d,
-    mindStreak,
     scenarios14d,
     decisions14d,
     cognitiveThrottle,
@@ -162,8 +160,8 @@ function evaluateMindToInfluence(ctx: StageGateContext): StageGateCriterion[] {
     criterion(
       'mind_practice',
       'Mind practice 14д',
-      mindStreak14 >= 3 || mindStreak >= 3,
-      Math.max(mindStreak14, mindStreak),
+      mindStreak14 >= 3,
+      mindStreak14,
       '≥3/14',
       'blocker'
     ),
