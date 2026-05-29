@@ -30,12 +30,17 @@ export async function getMindPractice14d(): Promise<number> {
 
 /** @deprecated Combo streak (chess+reflection same day); use getMindPractice14d for gates. */
 export async function getMindStreak(): Promise<number> {
+  const since = dateKeyDaysAgo(29);
+  const [chessSessions, reflections] = await Promise.all([
+    db.chessGoSessions.where('date').aboveOrEqual(since).toArray(),
+    db.reflections.where('date').aboveOrEqual(since).toArray(),
+  ]);
+  const chessDays = new Set(chessSessions.map((s) => s.date));
+  const reflectDays = new Set(reflections.map((r) => r.date));
   let streak = 0;
   for (let d = 0; d < 30; d++) {
     const key = dateKeyDaysAgo(d);
-    const chess = await db.chessGoSessions.where('date').equals(key).count();
-    const reflect = await db.reflections.where('date').equals(key).count();
-    if (chess > 0 && reflect > 0) streak++;
+    if (chessDays.has(key) && reflectDays.has(key)) streak++;
     else break;
   }
   return streak;

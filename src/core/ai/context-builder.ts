@@ -662,7 +662,14 @@ async function buildDirectorContextUncached(
         stage: p.stage,
         taskKey: p.taskKey,
       })),
-      dailyLog: dailyLog ?? null,
+      dailyLog: dailyLog
+        ? {
+            ...dailyLog,
+            notes: dailyLog.notes
+              ? truncateUntrustedText(dailyLog.notes, 500)
+              : dailyLog.notes,
+          }
+        : null,
       briefingDone: todayReport?.briefingDone ?? false,
       debriefDone: todayReport?.debriefDone ?? false,
     },

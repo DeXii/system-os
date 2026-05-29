@@ -44,13 +44,19 @@ export async function getRegulationPractice14d(): Promise<number> {
 
 /** @deprecated UI combo streak (HRV+breath+mind same day); use getRegulationPractice14d for gates. */
 export async function getRegulationStreak(): Promise<number> {
+  const since = dateKeyDaysAgo(29);
+  const [hrvEntries, breathing, mindfulness] = await Promise.all([
+    db.hrvEntries.where('date').aboveOrEqual(since).toArray(),
+    db.breathingSessions.where('date').aboveOrEqual(since).toArray(),
+    db.mindfulnessSessions.where('date').aboveOrEqual(since).toArray(),
+  ]);
+  const hrvDays = new Set(hrvEntries.map((e) => e.date));
+  const breathDays = new Set(breathing.map((s) => s.date));
+  const mindfulDays = new Set(mindfulness.map((s) => s.date));
   let streak = 0;
   for (let d = 0; d < 30; d++) {
     const key = dateKeyDaysAgo(d);
-    const hrv = await db.hrvEntries.where('date').equals(key).count();
-    const breath = await db.breathingSessions.where('date').equals(key).count();
-    const mindful = await db.mindfulnessSessions.where('date').equals(key).count();
-    if (hrv > 0 && breath > 0 && mindful > 0) streak++;
+    if (hrvDays.has(key) && breathDays.has(key) && mindfulDays.has(key)) streak++;
     else break;
   }
   return streak;

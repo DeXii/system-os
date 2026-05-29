@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { TASK_KEYS } from '@/content/task-keys';
 import { db, todayKey, uid } from '@/core/db';
+import { completeByTaskKey } from '@/core/kernel/commands/complete';
 import { emitKernel } from '@/core/events/event-bus';
 import type { BftEvent } from '@/core/domain/types';
 import { GlossaryZone } from '@/ui/glossary';
@@ -26,15 +28,17 @@ export function BftPanel({ onSaved }: Props) {
   }, []);
 
   const save = async () => {
+    const date = todayKey();
     await db.bftEvents.add({
       id: uid(),
-      date: todayKey(),
+      date,
       maxPullups: Number(form.maxPullups) || 0,
       maxDips: Number(form.maxDips) || 0,
       plankSec: Number(form.plankSec) || 0,
       hangSec: form.hangSec ? Number(form.hangSec) : undefined,
     });
-    await emitKernel('foundation', 'Bar Fitness Test записан', 'success');
+    await completeByTaskKey(TASK_KEYS.foundationBft, date, 'foundation');
+    await emitKernel('foundation', 'Bar Fitness Test записан', 'success', TASK_KEYS.foundationBft);
     setForm({ maxPullups: '', maxDips: '', plankSec: '', hangSec: '' });
     load();
     onSaved();

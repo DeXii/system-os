@@ -1,8 +1,6 @@
-import {
-  clearMetricsCache,
-  clearReadinessMemoryCache,
-  invalidateDerivedCaches,
-} from '../cache';
+import { clearReadinessMemoryCache, invalidateDerivedCaches } from '../cache';
+import { clearDirectorPrompt } from '@/stores/director-prompt-store';
+import { detachRevisionHooks } from '../db/revision-hooks';
 import { db } from '../db';
 import {
   deleteCloudSnapshot,
@@ -27,6 +25,7 @@ export async function clearAllLocalOsData(): Promise<void> {
 
 /** Удаляет только локальную БД (экран ошибки IndexedDB). Облако не трогает. */
 export async function resetLocalDatabaseOnly(): Promise<void> {
+  detachRevisionHooks();
   detachCloudSyncListeners();
   db.close();
   await new Promise<void>((resolve, reject) => {
@@ -51,6 +50,7 @@ function clearSessionHandoff(): void {
  */
 export async function factoryResetOs(): Promise<FactoryResetResult> {
   pauseCloudSync();
+  detachRevisionHooks();
   detachCloudSyncListeners();
 
   try {
@@ -69,7 +69,7 @@ export async function factoryResetOs(): Promise<FactoryResetResult> {
 
   invalidateDerivedCaches('factory-reset');
   clearReadinessMemoryCache();
-  clearMetricsCache();
+  clearDirectorPrompt();
   clearSessionHandoff();
 
   window.location.reload();

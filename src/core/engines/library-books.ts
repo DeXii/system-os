@@ -2,14 +2,31 @@ import { buildCatalogSeedBooks } from '@/content/os-books-catalog';
 import { db, toLocalDateKey } from '../db';
 import type { BookLevel, LibraryBook } from '../domain/types';
 
+let librarySeedInflight: Promise<void> | null = null;
+
+function sortBooks(a: LibraryBook, b: LibraryBook): number {
+  return a.level - b.level || a.title.localeCompare(b.title);
+}
+
 export async function ensureLibrarySeeded(): Promise<void> {
-  const count = await db.libraryBooks.count();
-  if (count > 0) return;
-  const seed = buildCatalogSeedBooks().map((b) => ({
-    ...b,
-    status: 'unread' as const,
-  }));
-  await db.libraryBooks.bulkAdd(seed);
+  if (librarySeedInflight) return librarySeedInflight;
+
+  const run = (async () => {
+    const count = await db.libraryBooks.count();
+    if (count > 0) return;
+    const seed = buildCatalogSeedBooks().map((b) => ({
+      ...b,
+      status: 'unread' as const,
+    }));
+    await db.libraryBooks.bulkPut(seed);
+  })();
+
+  librarySeedInflight = run;
+  try {
+    await run;
+  } finally {
+    librarySeedInflight = null;
+  }
 }
 
 export const LIBRARY_PAGE_SIZE = 50;
@@ -44,9 +61,10 @@ export async function loadBooksPage(params: LoadBooksPageParams): Promise<{
           .equals(params.level)
           .filter((b) => matchesBookFilter(b, params.filter));
 
-  const total = await query.count();
-  const books = await query.offset(params.offset).limit(limit).toArray();
-  books.sort((a, b) => a.level - b.level || a.title.localeCompare(b.title));
+  const matched = await query.toArray();
+  matched.sort(sortBooks);
+  const total = matched.length;
+  const books = matched.slice(params.offset, params.offset + limit);
   return {
     books,
     total,

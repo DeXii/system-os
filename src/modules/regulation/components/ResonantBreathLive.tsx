@@ -18,6 +18,7 @@ export function ResonantBreathLive({ onComplete }: Props) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [elapsedSec, setElapsedSec] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const finishingRef = useRef(false);
   const elapsedRef = useRef(0);
   const durationMinRef = useRef(durationMin);
   const presetRef = useRef(preset);
@@ -38,6 +39,8 @@ export function ResonantBreathLive({ onComplete }: Props) {
   }, []);
 
   const finish = useCallback(async () => {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
     stop();
     const p = presetRef.current;
     const mins = Math.max(1, Math.round(elapsedRef.current / 60) || durationMinRef.current);
@@ -47,8 +50,12 @@ export function ResonantBreathLive({ onComplete }: Props) {
       durationMin: mins,
       breathsPerMin: p.breathsPerMin,
     };
-    await afterBreathingComplete(session);
-    onCompleteRef.current();
+    try {
+      await afterBreathingComplete(session);
+      onCompleteRef.current();
+    } finally {
+      finishingRef.current = false;
+    }
   }, [stop]);
 
   useEffect(() => {
@@ -71,6 +78,7 @@ export function ResonantBreathLive({ onComplete }: Props) {
   }, [running, finish]);
 
   const start = () => {
+    finishingRef.current = false;
     elapsedRef.current = 0;
     setElapsedSec(0);
     setPhase('inhale');

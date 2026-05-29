@@ -19,6 +19,7 @@ import { useOsState } from '@/hooks/useOsState';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { runDirectorTask } from '@/core/ai/director-service';
 import { downloadExportJson, exportAllData } from '@/core/data/export-import';
+import { emitKernel } from '@/core/events/event-bus';
 import type { ModuleId } from '@/core/domain/types';
 import { GlossaryProvider } from '@/ui/glossary';
 
@@ -65,8 +66,13 @@ export function OsLayout() {
 
   const runPaletteDirector = useCallback(
     async (taskId: 'morningBriefing' | 'eveningDebrief') => {
-      await runDirectorTask(taskId, { scope: 'command' });
-      await refresh();
+      try {
+        await runDirectorTask(taskId, { scope: 'command' });
+        await refresh();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Ошибка DIRECTOR';
+        await emitKernel('director', msg, 'error');
+      }
     },
     [refresh]
   );
@@ -97,7 +103,12 @@ export function OsLayout() {
       id: 'archive-export',
       label: 'ARCHIVE: Экспорт данных',
       run: () => {
-        void exportAllData().then(downloadExportJson);
+        void exportAllData()
+          .then(downloadExportJson)
+          .catch((e) => {
+            const msg = e instanceof Error ? e.message : 'Ошибка экспорта';
+            void emitKernel('archive', msg, 'error');
+          });
       },
     },
   ]);

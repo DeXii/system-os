@@ -23,18 +23,19 @@ export function ArchiveOpsSummary() {
   const [lastInsight, setLastInsight] = useState<string | null>(null);
   const [totalRows, setTotalRows] = useState(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     const counts = await getDataSnapshotStats();
+    if (signal?.aborted) return;
     setStats(counts);
     setTotalRows(Object.values(counts).reduce((a, b) => a + b, 0));
     const last = await db.aiInsights.orderBy('createdAt').reverse().first();
+    if (signal?.aborted) return;
     setLastInsight(last?.createdAt ?? null);
   }, []);
 
   useAsyncEffect(
     async (signal) => {
-      await load();
-      if (signal.aborted) return;
+      await load(signal);
     },
     [load]
   );

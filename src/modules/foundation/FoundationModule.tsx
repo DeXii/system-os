@@ -16,6 +16,7 @@ import { FitnessLevelPanel } from './components/FitnessLevelPanel';
 import { HiftLiveMode } from './components/HiftLiveMode';
 import { StraightSetsLiveMode } from './components/StraightSetsLiveMode';
 import { FoundationDirectorPanel } from './components/FoundationDirectorPanel';
+import { ManualWorkoutLogPanel } from './components/ManualWorkoutLogPanel';
 import { WorkoutHubPanel } from './components/WorkoutHubPanel';
 import { StageBooksWidget } from '@/modules/library/components/StageBooksWidget';
 import { ModuleShell } from '@/ui/shell/ModuleShell';
@@ -122,6 +123,13 @@ export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary, onOpe
         onPlanAccepted={(p) => setLivePlan(p)}
         onCardioReady={(s) => setCardioSession(s)}
         onRefresh={() => {
+          load();
+          onRefresh();
+        }}
+      />
+
+      <ManualWorkoutLogPanel
+        onSaved={() => {
           load();
           onRefresh();
         }}

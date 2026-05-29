@@ -160,9 +160,10 @@ export function NutritionDashboard({ reloadToken, onBump, planDayIndex }: Props)
 
 
 
-  const proteinPct = goal ? Math.min(100, Math.round((day.protein / goal.targetProtein) * 100)) : 0;
-
-  const calPct = goal ? Math.min(100, Math.round((day.calories / goal.targetCalories) * 100)) : 0;
+  const proteinDenom = goal?.targetProtein && goal.targetProtein > 0 ? goal.targetProtein : 1;
+  const calDenom = goal?.targetCalories && goal.targetCalories > 0 ? goal.targetCalories : 1;
+  const proteinPct = goal ? Math.min(100, Math.round((day.protein / proteinDenom) * 100)) : 0;
+  const calPct = goal ? Math.min(100, Math.round((day.calories / calDenom) * 100)) : 0;
 
 
 

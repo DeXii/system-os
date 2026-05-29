@@ -49,14 +49,25 @@ export default {
       );
     }
 
-    if (env.PROXY_TOKEN) {
-      const token = request.headers.get('X-Ayanakoji-Token');
-      if (token !== env.PROXY_TOKEN) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401,
+    if (!env.PROXY_TOKEN) {
+      return new Response(
+        JSON.stringify({
+          error: 'PROXY_TOKEN not configured',
+          hint: 'Set PROXY_TOKEN via wrangler secret put PROXY_TOKEN',
+        }),
+        {
+          status: 503,
           headers: { ...cors, 'Content-Type': 'application/json' },
-        });
-      }
+        }
+      );
+    }
+
+    const token = request.headers.get('X-Ayanakoji-Token');
+    if (token !== env.PROXY_TOKEN) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      });
     }
 
     const apiKey = env.GROQ_API_KEY;

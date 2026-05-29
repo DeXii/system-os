@@ -1,4 +1,4 @@
-/** Cache invalidation hooks — expanded in readiness-cache / compliance-cache */
+/** Cache invalidation hooks — readiness-cache, context-cache subscribe here */
 
 let invalidationListeners = new Set<() => void>();
 

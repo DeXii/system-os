@@ -22,7 +22,7 @@ cd workers/groq-proxy
 npm install
 npx wrangler login
 npx wrangler secret put GROQ_API_KEY
-# опционально:
+# обязательно (без токена /v1/* возвращает 503):
 npx wrangler secret put PROXY_TOKEN
 npx wrangler deploy
 ```
@@ -83,7 +83,7 @@ npm run dev
 | Проблема | Решение |
 |----------|---------|
 | Белый экран / Firebase config | Проверьте secrets в GitHub Actions |
-| 401 от Groq proxy | `PROXY_TOKEN` на worker и `VITE_PROXY_TOKEN` должны совпадать |
+| 401 / 503 от Groq proxy | `PROXY_TOKEN` **обязателен** на worker; должен совпадать с `VITE_PROXY_TOKEN` в сборке |
 | Assets 404 на Pages | `VITE_BASE_PATH` должен совпадать с URL (`/REPO/` со слэшами) |
 | CORS / DIRECTOR offline | Worker задеплоен, `VITE_GROQ_PROXY_URL` верный |
 | «Сгенерировать план» / DIRECTOR зависает на «Запрос к Groq...» | Обновите страницу после деплоя (Ctrl+Shift+R) — нужна миграция IndexedDB v10. В консоли не должно быть `KeyPath ... is not indexed` |

@@ -26,7 +26,8 @@ export async function aggregateDay(date: string): Promise<NutritionDay> {
   }
 
   const goal = await getActiveGoal();
-  const proteinTarget = goal?.targetProtein ?? 100;
+  const proteinTarget =
+    goal?.targetProtein && goal.targetProtein > 0 ? goal.targetProtein : 100;
   const proteinRatio = protein / proteinTarget;
   const calTarget =
     goal?.targetCalories && goal.targetCalories > 0 ? goal.targetCalories : 2200;

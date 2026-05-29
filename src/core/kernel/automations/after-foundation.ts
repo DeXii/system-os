@@ -1,14 +1,36 @@
 import { TASK_KEYS } from '@/content/task-keys';
 import { db, uid } from '../../db';
-import type { WorkoutPlan } from '../../domain/types';
+import type { WorkoutKind, WorkoutPlan } from '../../domain/types';
 import { refreshDayReportCompliance } from '../../engines/command-compliance';
 import { emitDomainEvent, emitKernel, emitOsRefresh } from '../../events/event-bus';
 import { completeByTaskKey } from '../commands/complete';
 import { afterFactWrite } from '../pipeline';
 
-export async function afterWorkoutComplete(plan: WorkoutPlan): Promise<void> {
+export interface WorkoutCompleteOptions {
+  durationMin?: number;
+  source?: 'manual' | 'live';
+}
+
+function isBarProtocolKind(kind: WorkoutKind): boolean {
+  return (
+    kind === 'hift' ||
+    kind.startsWith('gpp_') ||
+    kind === 'warmup' ||
+    kind === 'stretch'
+  );
+}
+
+function defaultDurationMin(plan: WorkoutPlan): number {
+  return plan.exercises.reduce((a, e) => a + e.sets * 2, 15);
+}
+
+export async function afterWorkoutComplete(
+  plan: WorkoutPlan,
+  options?: WorkoutCompleteOptions
+): Promise<void> {
   const today = plan.date;
   const kind = plan.kind ?? 'legacy';
+  const sourceLabel = options?.source === 'manual' ? 'manual' : 'LIVE';
   await db.workoutPlans.update(plan.id, { status: 'completed' });
 
   const sessionType =
@@ -30,9 +52,9 @@ export async function afterWorkoutComplete(plan: WorkoutPlan): Promise<void> {
       id: uid(),
       date: today,
       type: sessionType,
-      durationMin: plan.exercises.reduce((a, e) => a + e.sets * 2, 15),
+      durationMin: options?.durationMin ?? defaultDurationMin(plan),
       intensity: kind === 'hift' ? 'high' : 'medium',
-      notes: `${kind} LIVE`,
+      notes: `${kind} ${sourceLabel}`,
       workoutKind: kind,
       workoutPlanId: plan.id,
     });
@@ -48,6 +70,9 @@ export async function afterWorkoutComplete(plan: WorkoutPlan): Promise<void> {
 
   await afterFactWrite({ type: 'WORKOUT_LOGGED', date: today, planId: plan.id, kind });
   await completeByTaskKey(TASK_KEYS.foundationWorkout, today, 'foundation');
+  if (isBarProtocolKind(kind)) {
+    await completeByTaskKey(TASK_KEYS.foundationGpp, today, 'foundation');
+  }
   await refreshDayReportCompliance(today);
   await emitKernel(
     'foundation',
@@ -85,7 +110,8 @@ export async function afterCardioComplete(
   const { incrementWorkoutTypeStat } = await import('../../engines/workout-stats');
   await incrementWorkoutTypeStat(session.kind, session.date);
   await emitDomainEvent({ type: 'CARDIO_LOGGED', date: session.date, sessionId });
+  await completeByTaskKey(TASK_KEYS.foundationCardio, session.date, 'foundation');
   await refreshDayReportCompliance(session.date);
-  await emitKernel('foundation', 'Кардио завершено', 'success');
+  await emitKernel('foundation', 'Кардио завершено', 'success', TASK_KEYS.foundationCardio);
   emitOsRefresh();
 }

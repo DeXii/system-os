@@ -37,3 +37,8 @@ export function subscribeDirectorPrompt(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
+
+export function clearDirectorPrompt(): void {
+  lastPrompt = null;
+  notify();
+}

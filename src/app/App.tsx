@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { db } from '@/core/db';
+import { attachRevisionHooks, detachRevisionHooks } from '@/core/db/revision-hooks';
 import {
   attachCloudSyncListeners,
   clearStaleCloudSyncError,
@@ -66,6 +67,7 @@ function OsApp({ user }: { user: User }) {
             }
           }
         }
+        attachRevisionHooks();
         attachCloudSyncListeners();
         const p = await db.operator.toCollection().first();
         if (!cancelled) {
@@ -81,6 +83,7 @@ function OsApp({ user }: { user: User }) {
     })();
     return () => {
       cancelled = true;
+      detachRevisionHooks();
       detachCloudSyncListeners();
     };
   }, [user.uid]);
