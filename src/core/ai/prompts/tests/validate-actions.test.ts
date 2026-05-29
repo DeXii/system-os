@@ -42,4 +42,25 @@ describe('validateAndFilterActions', () => {
     );
     expect(actions).toHaveLength(1);
   });
+
+  it('coerces string numeric fields in set_workout_plan', () => {
+    const { actions } = validateAndFilterActions(
+      [
+        {
+          type: 'set_workout_plan',
+          payload: {
+            kind: 'hift',
+            exercises: [{ exerciseId: 'hift_pullup', sets: '3', targetReps: '8', restSec: '60' }],
+          },
+        },
+      ],
+      {
+        allowedActions: ['set_workout_plan'],
+        context: { allowedExerciseIds: ['hift_pullup'] },
+      }
+    );
+    expect(actions).toHaveLength(1);
+    const ex = (actions[0].payload.exercises as { sets: number }[])[0];
+    expect(ex.sets).toBe(3);
+  });
 });

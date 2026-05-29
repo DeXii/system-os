@@ -1,12 +1,15 @@
 import { z } from 'zod';
 
+const coerceInt = z.coerce.number().int();
+const coerceNum = z.coerce.number();
+
 const exerciseSchema = z.object({
   exerciseId: z.string().min(1),
-  sets: z.number().int().positive().optional(),
-  targetReps: z.number().optional(),
-  targetSeconds: z.number().optional(),
+  sets: coerceInt.positive().optional(),
+  targetReps: coerceNum.optional(),
+  targetSeconds: coerceNum.optional(),
   measure: z.string().optional(),
-  restSec: z.number().optional(),
+  restSec: coerceNum.optional(),
 });
 
 const payloadSchemas = {
@@ -40,14 +43,14 @@ const payloadSchemas = {
   set_workout_plan: z.object({
     kind: z.string().optional(),
     structure: z.string().optional(),
-    rounds: z.number().optional(),
-    roundRestSec: z.number().optional(),
+    rounds: coerceNum.optional(),
+    roundRestSec: coerceNum.optional(),
     gppSubtype: z.string().optional(),
     exercises: z.array(exerciseSchema).min(1),
   }),
   set_cardio_session_plan: z.object({
     kind: z.enum(['cardio_intense', 'cardio_easy']).optional(),
-    durationMin: z.number().min(10).max(120),
+    durationMin: coerceNum.pipe(z.number().min(10).max(120)),
     suggestedActivity: z.string().optional(),
     notes: z.string().optional(),
   }),
@@ -76,12 +79,12 @@ export type ParsedAiAction = z.infer<typeof aiActionSchema>;
 export function validateActionPayload(
   type: ParsedAiAction['type'],
   payload: Record<string, unknown>
-): { ok: true } | { ok: false; error: string } {
+): { ok: true; payload: Record<string, unknown> } | { ok: false; error: string } {
   const schema = payloadSchemas[type];
   if (!schema) return { ok: false, error: `Unknown type: ${type}` };
   const result = schema.safeParse(payload);
   if (!result.success) {
     return { ok: false, error: result.error.message };
   }
-  return { ok: true };
+  return { ok: true, payload: result.data as Record<string, unknown> };
 }

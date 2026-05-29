@@ -94,10 +94,31 @@ export function getDirectorStatus(): 'online' | 'offline' | 'needs_config' {
 
 const MAX_TOKENS_LOOKBACK_7 = 2048;
 const MAX_TOKENS_DEEP = 8192;
+const MAX_TOKENS_WORKOUT_PLAN = 4096;
+
+const WORKOUT_PLAN_TASK_IDS = new Set<TaskId>([
+  'planHift',
+  'planGpp',
+  'planWarmup',
+  'planStretch',
+  'planCardioIntense',
+  'planCardioEasy',
+  'planWorkout',
+]);
 
 function maxTokensForLookback(lookbackDays: ContextLookbackDays): number {
   return lookbackDays === 7 ? MAX_TOKENS_LOOKBACK_7 : MAX_TOKENS_DEEP;
 }
+
+function maxTokensForTask(taskId: TaskId, lookbackDays: ContextLookbackDays): number {
+  if (WORKOUT_PLAN_TASK_IDS.has(taskId)) return MAX_TOKENS_WORKOUT_PLAN;
+  return maxTokensForLookback(lookbackDays);
+}
+
+export type DirectorRunMeta = {
+  rawActionCount: number;
+  droppedCount: number;
+};
 
 export async function runDirectorTask(
   taskId: TaskId,
@@ -108,7 +129,10 @@ export async function runDirectorTask(
     onProgress?: (message: string) => void;
     workoutContext?: WorkoutContextOptions;
   }
-): Promise<{ ok: true; insight: AiInsight } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; insight: AiInsight; meta: DirectorRunMeta }
+  | { ok: false; error: string }
+> {
   const cfg = getDirectorConfig();
   const valid = validateDirectorConfig(cfg);
   if (!valid.ok) return { ok: false, error: valid.error ?? 'Invalid config' };
@@ -135,7 +159,7 @@ export async function runDirectorTask(
 
     options?.onProgress?.('Запрос к Groq...');
     const result = await callGroq(bundle.system, bundle.user, cfg, {
-      maxTokens: maxTokensForLookback(lookbackDays),
+      maxTokens: maxTokensForTask(taskId, lookbackDays),
     });
     if (!result.ok) {
       await emitKernel(
@@ -199,7 +223,11 @@ export async function runDirectorTask(
       emitOsRefresh();
     }
 
-    return { ok: true, insight };
+    return {
+      ok: true,
+      insight,
+      meta: { rawActionCount, droppedCount: dropped.length },
+    };
   } catch (e) {
     const error = e instanceof Error ? e.message : 'Ошибка DIRECTOR';
     await emitKernel('director', `DIRECTOR: ${taskId} — ${error}`, 'error');

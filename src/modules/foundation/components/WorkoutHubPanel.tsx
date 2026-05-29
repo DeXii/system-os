@@ -24,6 +24,7 @@ import {
 } from '@/core/engines/workout-stats';
 import { runDirectorTask } from '@/core/ai/director-service';
 import type { TaskId } from '@/core/ai/director-tasks';
+import { TerminalBlock } from '@/ui/components/TerminalBlock';
 import { WorkoutPlanEditor } from './WorkoutPlanEditor';
 
 interface Props {
@@ -32,17 +33,29 @@ interface Props {
   onRefresh?: () => void;
 }
 
-type HubPhase = 'idle' | 'gpp_pick' | 'cardio_pick' | 'preview' | 'loading';
+type HubPhase = 'idle' | 'gpp_pick' | 'cardio_pick' | 'preview';
+
+interface LastRequest {
+  kind: WorkoutKind;
+  gppSubtype?: GppSubtype;
+}
+
+function responseLooksLikeJsonActions(text: string): boolean {
+  return /```json/i.test(text) || /"set_workout_plan"/i.test(text);
+}
 
 export function WorkoutHubPanel({ onPlanAccepted, onCardioReady, onRefresh }: Props) {
   const [phase, setPhase] = useState<HubPhase>('idle');
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<WorkoutPlan | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [lastDirectorText, setLastDirectorText] = useState<string | null>(null);
+  const [actionHint, setActionHint] = useState<string | null>(null);
   const [recommendedGpp, setRecommendedGpp] = useState<GppSubtype>('push');
   const [stats, setStats] = useState<Record<string, string>>({});
   const [levelsLine, setLevelsLine] = useState('');
   const [pendingCardio, setPendingCardio] = useState<'cardio_intense' | 'cardio_easy' | null>(null);
+  const [lastRequest, setLastRequest] = useState<LastRequest | null>(null);
 
   const loadMeta = useCallback(async () => {
     const rec = await getRecommendedGppSubtype();
@@ -80,86 +93,111 @@ export function WorkoutHubPanel({ onPlanAccepted, onCardioReady, onRefresh }: Pr
     userExtra?: string
   ) => {
     setLoading(true);
-    setMessage(null);
+    setStatusMessage('Запрос к DIRECTOR...');
+    setActionHint(null);
+    setLastRequest({ kind, gppSubtype });
     const userMessage =
       userExtra ??
       (gppSubtype
         ? `Составь GPP тренировку типа ${gppSubtype} на сегодня на грани моих возможностей.`
         : `Составь план ${kind} на сегодня.`);
 
-    const res = await runDirectorTask(taskId, {
-      scope: 'foundation',
-      userMessage,
-      workoutContext: { kind, gppSubtype },
-      onProgress: setMessage,
-    });
+    try {
+      const res = await runDirectorTask(taskId, {
+        scope: 'foundation',
+        userMessage,
+        workoutContext: { kind, gppSubtype },
+        onProgress: setStatusMessage,
+      });
 
-    if (!res.ok) {
-      setMessage(res.error);
-      setLoading(false);
-      setPhase('idle');
-      return;
-    }
+      if (!res.ok) {
+        setLastDirectorText(res.error);
+        setActionHint(null);
+        setPhase('idle');
+        return;
+      }
 
-    const workoutAction = res.insight.actions.find((a) => a.type === 'set_workout_plan');
-    const cardioAction = res.insight.actions.find((a) => a.type === 'set_cardio_session_plan');
+      setLastDirectorText(res.insight.text);
+      const metaHint =
+        res.meta.droppedCount > 0
+          ? `Отброшено действий: ${res.meta.droppedCount} (см. KERNEL). `
+          : res.meta.rawActionCount > 0 && res.insight.actions.length === 0
+            ? `Все ${res.meta.rawActionCount} действий отфильтрованы. `
+            : '';
 
-    if (cardioAction && pendingCardio) {
-      const durationMin = Math.max(10, Number(cardioAction.payload.durationMin) || 25);
-      const session: CardioSession = {
-        id: uid(),
-        date: new Date().toISOString().slice(0, 10),
-        kind: pendingCardio,
-        durationMin,
-        notes: String(cardioAction.payload.suggestedActivity ?? res.insight.text.slice(0, 120)),
-      };
-      await db.cardioSessions.put(session);
-      setMessage(res.insight.text);
-      setLoading(false);
-      setPhase('idle');
-      onCardioReady(session);
-      onRefresh?.();
-      return;
-    }
+      const workoutAction = res.insight.actions.find((a) => a.type === 'set_workout_plan');
+      const cardioAction = res.insight.actions.find((a) => a.type === 'set_cardio_session_plan');
 
-    if (workoutAction && Array.isArray(workoutAction.payload.exercises)) {
-      const built = await applyWorkoutPlanFromDirector(
-        workoutAction.payload.exercises as unknown[],
-        undefined,
-        {
-          kind: (workoutAction.payload.kind as WorkoutKind) ?? kind,
-          structure: workoutAction.payload.structure as WorkoutPlan['structure'],
-          rounds: Number(workoutAction.payload.rounds) || undefined,
-          roundRestSec: Number(workoutAction.payload.roundRestSec) || undefined,
-          circuitExerciseIds: workoutAction.payload.circuitExerciseIds as string[] | undefined,
-          gppSubtype: (workoutAction.payload.gppSubtype as GppSubtype) ?? gppSubtype,
-          notes: 'План DIRECTOR (превью)',
-        }
+      if (cardioAction && pendingCardio) {
+        const durationMin = Math.max(10, Number(cardioAction.payload.durationMin) || 25);
+        const session: CardioSession = {
+          id: uid(),
+          date: new Date().toISOString().slice(0, 10),
+          kind: pendingCardio,
+          durationMin,
+          notes: String(cardioAction.payload.suggestedActivity ?? res.insight.text.slice(0, 120)),
+        };
+        await db.cardioSessions.put(session);
+        setActionHint(null);
+        setPhase('idle');
+        onCardioReady(session);
+        onRefresh?.();
+        return;
+      }
+
+      if (workoutAction && Array.isArray(workoutAction.payload.exercises)) {
+        const built = await applyWorkoutPlanFromDirector(
+          workoutAction.payload.exercises as unknown[],
+          undefined,
+          {
+            kind: (workoutAction.payload.kind as WorkoutKind) ?? kind,
+            structure: workoutAction.payload.structure as WorkoutPlan['structure'],
+            rounds: Number(workoutAction.payload.rounds) || undefined,
+            roundRestSec: Number(workoutAction.payload.roundRestSec) || undefined,
+            circuitExerciseIds: workoutAction.payload.circuitExerciseIds as string[] | undefined,
+            gppSubtype: (workoutAction.payload.gppSubtype as GppSubtype) ?? gppSubtype,
+            notes: 'План DIRECTOR (превью)',
+          }
+        );
+        setPlan(built);
+        setPhase('preview');
+        setActionHint(null);
+        return;
+      }
+
+      const jsonHint = responseLooksLikeJsonActions(res.insight.text)
+        ? 'План в тексте, но actions не прошли валидацию — см. KERNEL / PROMPT. '
+        : '';
+      setActionHint(
+        `${metaHint}${jsonHint}DIRECTOR не вернул set_workout_plan — используйте «Простой план без ИИ».`
       );
-      setPlan(built);
+      setPhase('idle');
+    } catch (e) {
+      setLastDirectorText(e instanceof Error ? e.message : 'Ошибка DIRECTOR');
+      setActionHint(null);
+      setPhase('idle');
+    } finally {
       setLoading(false);
-      setPhase('preview');
-      setMessage(res.insight.text.slice(0, 400));
-      return;
+      setStatusMessage(null);
     }
-
-    setMessage('DIRECTOR не вернул set_workout_plan — используйте «Простой план без ИИ».');
-    setLoading(false);
-    setPhase('idle');
   };
 
   const runLocal = async (kind: WorkoutKind, gppSubtype?: GppSubtype) => {
     setLoading(true);
-    let p: WorkoutPlan;
-    if (kind === 'hift') p = await buildHiftPlanLocal();
-    else if (gppSubtype) p = await buildGppPlanLocal(gppSubtype);
-    else if (kind === 'warmup') p = await buildWarmupPlanLocal();
-    else if (kind === 'stretch') p = await buildStretchPlanLocal();
-    else return;
-    setPlan(p);
-    setMessage('Локальный план (без ИИ)');
-    setLoading(false);
-    setPhase('preview');
+    setActionHint(null);
+    try {
+      let p: WorkoutPlan;
+      if (kind === 'hift') p = await buildHiftPlanLocal();
+      else if (gppSubtype) p = await buildGppPlanLocal(gppSubtype);
+      else if (kind === 'warmup') p = await buildWarmupPlanLocal();
+      else if (kind === 'stretch') p = await buildStretchPlanLocal();
+      else return;
+      setPlan(p);
+      setLastDirectorText('Локальный план (без ИИ)');
+      setPhase('preview');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const acceptPlan = async () => {
@@ -187,15 +225,37 @@ export function WorkoutHubPanel({ onPlanAccepted, onCardioReady, onRefresh }: Pr
     </button>
   );
 
+  const directorFeedback = (
+    <>
+      {loading && statusMessage && (
+        <p style={{ fontSize: 12, color: 'var(--accent)', marginBottom: 8 }}>{statusMessage}</p>
+      )}
+      {!loading && lastDirectorText && (
+        <div className="mb-sm" style={{ marginBottom: 8 }}>
+          <TerminalBlock>{lastDirectorText}</TerminalBlock>
+        </div>
+      )}
+      {!loading && actionHint && (
+        <p style={{ fontSize: 12, color: 'var(--warn)', marginBottom: 8 }}>{actionHint}</p>
+      )}
+      {!loading && actionHint && lastRequest && lastRequest.kind !== 'cardio_intense' && lastRequest.kind !== 'cardio_easy' && (
+        <button
+          type="button"
+          className="btn btn-sm"
+          style={{ marginBottom: 8 }}
+          onClick={() => void runLocal(lastRequest.kind, lastRequest.gppSubtype)}
+        >
+          Простой план без ИИ
+        </button>
+      )}
+    </>
+  );
+
   if (phase === 'preview' && plan) {
     return (
       <div className="panel">
         <div className="panel-title">Превью плана — {plan.kind}</div>
-        {message && (
-          <pre style={{ fontSize: 11, whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto' }}>
-            {message}
-          </pre>
-        )}
+        {directorFeedback}
         <WorkoutPlanEditor
           plan={plan}
           onChange={setPlan}
@@ -226,9 +286,7 @@ export function WorkoutHubPanel({ onPlanAccepted, onCardioReady, onRefresh }: Pr
       <div className="panel-title">Тренировки</div>
       <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>{levelsLine}</p>
 
-      {loading && phase !== 'preview' && (
-        <p style={{ fontSize: 12, color: 'var(--accent)' }}>{message ?? 'Запрос к DIRECTOR...'}</p>
-      )}
+      {directorFeedback}
 
       {phase === 'gpp_pick' && (
         <div style={{ marginBottom: 12 }}>

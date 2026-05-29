@@ -54,37 +54,38 @@ export function validateAndFilterActions(
       dropped.push({ action, reason: payloadCheck.error });
       continue;
     }
+    const normalized: AiAction = { type: action.type, payload: payloadCheck.payload };
 
-    if (payloadUsesForbiddenEquipment(action.payload)) {
-      dropped.push({ action, reason: 'forbidden equipment in payload' });
+    if (payloadUsesForbiddenEquipment(normalized.payload)) {
+      dropped.push({ action: normalized, reason: 'forbidden equipment in payload' });
       continue;
     }
 
-    if (action.type === 'set_workout_plan') {
-      const exercises = action.payload.exercises;
+    if (normalized.type === 'set_workout_plan') {
+      const exercises = normalized.payload.exercises;
       if (Array.isArray(exercises)) {
         const invalid = (exercises as { exerciseId?: string }[]).some(
           (ex) => ex.exerciseId && !exerciseIdAllowed(ex.exerciseId, options.context.allowedExerciseIds)
         );
         if (invalid) {
-          dropped.push({ action, reason: 'exerciseId not in allowedExerciseIds' });
+          dropped.push({ action: normalized, reason: 'exerciseId not in allowedExerciseIds' });
           continue;
         }
       }
     }
 
     if (
-      (action.type === 'move_slot' || action.type === 'complete_slot') &&
+      (normalized.type === 'move_slot' || normalized.type === 'complete_slot') &&
       options.context.todayTaskKeys?.length
     ) {
-      const key = String(action.payload.taskKey ?? '');
+      const key = String(normalized.payload.taskKey ?? '');
       if (key && !options.context.todayTaskKeys.includes(key)) {
-        dropped.push({ action, reason: `taskKey not in todayQueue: ${key}` });
+        dropped.push({ action: normalized, reason: `taskKey not in todayQueue: ${key}` });
         continue;
       }
     }
 
-    out.push(action);
+    out.push(normalized);
   }
 
   return { actions: out, dropped };
