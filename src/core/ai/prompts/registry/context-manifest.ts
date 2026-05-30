@@ -1,4 +1,5 @@
 import type { TaskId } from '../../director-tasks';
+import type { ContextLookbackDays } from '../../context-builder';
 import type { ContextManifest, ContextSliceId } from '../../context/context-slice-types';
 import { FULL_CONTEXT_SLICES } from '../../context/context-slice-types';
 
@@ -38,7 +39,6 @@ const INFLUENCE_ENTRIES: ContextSliceId[] = ['influence.entries'];
 const NUTRITION_ALL: ContextSliceId[] = ['nutrition.day', 'nutrition.directive'];
 const INTEGRATION_WEEKLY: ContextSliceId[] = ['integration.weekly'];
 const STAGE_GATE: ContextSliceId[] = ['stageProgress.gate'];
-const STAGE_SUMMARY: ContextSliceId[] = ['stageProgress.summary'];
 
 function m(slices: ContextSliceId[], lookbackDays?: ContextManifest['lookbackDays']): ContextManifest {
   return { mode: 'minimal', slices: [...new Set(slices)], lookbackDays };
@@ -129,7 +129,7 @@ export function getContextManifest(taskId: TaskId): ContextManifest {
 export function resolveManifestLookback(
   taskId: TaskId,
   explicit?: ContextManifest['lookbackDays']
-): ContextManifest['lookbackDays'] {
+): ContextLookbackDays {
   if (explicit) return explicit;
   const manifest = getContextManifest(taskId);
   if (manifest.lookbackDays) return manifest.lookbackDays;

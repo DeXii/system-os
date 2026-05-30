@@ -9,7 +9,7 @@ import {
 import { fitnessCategoryForKind } from '@/content/exercises';
 import { db, dateKeyDaysAgo } from '../db';
 
-const DEFAULT_LEVELS: OperatorFitnessLevels = {
+export const DEFAULT_FITNESS_LEVELS: OperatorFitnessLevels = {
   id: 'fitness-levels',
   hift: 'medium',
   gpp: 'medium',
@@ -20,7 +20,7 @@ const DEFAULT_LEVELS: OperatorFitnessLevels = {
 
 export async function getFitnessLevels(): Promise<OperatorFitnessLevels> {
   const row = await db.operatorFitnessLevels.get('fitness-levels');
-  return row ?? DEFAULT_LEVELS;
+  return row ?? DEFAULT_FITNESS_LEVELS;
 }
 
 export async function saveFitnessLevels(

@@ -2,7 +2,11 @@ import { getAllowedIdsForKind, getExercisesForKind } from '@/content/exercises';
 import { getAllReferenceTemplatesForGroq } from '@/content/exercises/local-workout-templates';
 import { BAR_EXERCISES } from '@/content/exercises-bars';
 import { db, dateKeyDaysAgo, todayKey } from '../db';
-import { getFitnessLevels, tierForWorkoutKind } from '../engines/progression-engine';
+import {
+  DEFAULT_FITNESS_LEVELS,
+  getFitnessLevels,
+  tierForWorkoutKind,
+} from '../engines/progression-engine';
 import { getRecommendedGppSubtype, getWorkoutTypeStat } from '../engines/workout-stats';
 import { getTodayCompliance } from '../engines/command-compliance';
 import { getReadiness, getRuleHints } from '../engines/readiness';
@@ -56,7 +60,14 @@ import {
 import { getLastWeeklyAudit, getPyramidStageScores, getSynergySummary } from '../engines/integration-metrics';
 import { getIntegrationParams } from '../engines/integration-params';
 import { getReadingProgressByLevel } from '../engines/library-books';
-import type { GppSubtype, SetLog, WorkoutKind } from '../domain/types';
+import type {
+  GppSubtype,
+  ReadinessScores,
+  SetLog,
+  StageProgressState,
+  WorkoutKind,
+} from '../domain/types';
+import type { OperatorMode } from '../engines/operator-mode';
 import { buildContextConstraints } from './constraints-builder';
 import { EQUIPMENT_ALLOWED, EQUIPMENT_FORBIDDEN } from './prompts/rules/equipment.rules';
 import {
@@ -65,6 +76,34 @@ import {
 } from './context/slice-groups';
 
 export type ContextLookbackDays = 7 | 14 | 30;
+
+const EMPTY_READINESS: ReadinessScores = {
+  foundation: 0,
+  regulation: 0,
+  mind: 0,
+  influence: 0,
+  global: 0,
+};
+
+const EMPTY_OPERATOR_MODE: OperatorMode = {
+  mode: 'calculate',
+  label: 'CALCULATE',
+  rationale: '',
+};
+
+const EMPTY_STAGE_PROGRESS: StageProgressState = {
+  id: 'progress',
+  stageStreaks: {
+    foundation: 0,
+    regulation: 0,
+    mind: 0,
+    influence: 0,
+  },
+  globalStreak: 0,
+  lastEvaluatedDate: '',
+  qualifyingDays: 0,
+  readinessHistory: [],
+};
 
 export function sinceForLookback(lookbackDays: ContextLookbackDays): string {
   return dateKeyDaysAgo(lookbackDays - 1);
@@ -217,17 +256,13 @@ export async function buildFlatDirectorContext(
   const since = sinceForLookback(lookbackDays);
 
   const profile = needsCore ? await db.operator.toCollection().first() : null;
-  const readiness = needsCore ? await getReadiness() : { foundation: 0, regulation: 0, mind: 0, influence: 0 };
+  const readiness = needsCore ? await getReadiness() : EMPTY_READINESS;
   const hints = gl('kernel') ? await getRuleHints() : [];
   const statuses = needsCore ? getModuleStatuses(readiness) : {};
-  const progress = gl('kernel') || gl('integration') ? await getStageProgress() : {
-    id: 'progress',
-    stageStreaks: {},
-    globalStreak: 0,
-    lastEvaluatedDate: '',
-    qualifyingDays: 0,
-    readinessHistory: [],
-  };
+  const progress =
+    gl('kernel') || gl('integration')
+      ? await getStageProgress()
+      : EMPTY_STAGE_PROGRESS;
   const complianceToday =
     gl('compliance') || gl('kernel') ? await getTodayCompliance(today) : null;
 
@@ -387,7 +422,10 @@ export async function buildFlatDirectorContext(
     pstRecent,
     readinessRegulation: readiness.regulation,
     readinessFoundation: readiness.foundation,
-    regulationDirective: formatRegulationDirectiveForPrompt(regulationDirective),
+    regulationDirective:
+      regulationDirective != null
+        ? formatRegulationDirectiveForPrompt(regulationDirective)
+        : '',
     constraintKey: 'regulation.wimHof',
   } : {};
 
@@ -422,7 +460,9 @@ export async function buildFlatDirectorContext(
       ).sort((a, b) => b.date.localeCompare(a.date))
     : [];
   const operatorMode =
-    gl('kernel') || needsCore ? await computeOperatorMode(readiness) : { mode: 'focus', rationale: '' };
+    gl('kernel') || needsCore
+      ? await computeOperatorMode(readiness)
+      : EMPTY_OPERATOR_MODE;
 
   const mindOps = gl('mind') ? await getMindOpsSummary() : null;
   const mindParams = gl('mind') ? await getMindParams() : null;
@@ -479,14 +519,14 @@ export async function buildFlatDirectorContext(
     chessTrendInWindow: chessTrend,
     ops7d: mindOps,
     mindParams: {
-      chessDoseTargetMin: mindParams.chessDoseTargetMin,
-      reflectEfficacy: mindParams.reflectEfficacy,
-      decisionCalibration: mindParams.decisionCalibration,
-      cognitivePeakHour: mindParams.cognitivePeakHour,
-      swotTolerance: mindParams.swotTolerance,
-      ratingEma: mindParams.ratingEma,
+      chessDoseTargetMin: mindParams!.chessDoseTargetMin,
+      reflectEfficacy: mindParams!.reflectEfficacy,
+      decisionCalibration: mindParams!.decisionCalibration,
+      cognitivePeakHour: mindParams!.cognitivePeakHour,
+      swotTolerance: mindParams!.swotTolerance,
+      ratingEma: mindParams!.ratingEma,
     },
-    mindDirective: formatMindDirectiveForPrompt(mindDirective),
+    mindDirective: formatMindDirectiveForPrompt(mindDirective!),
     recentScenarios,
     recentDecisions,
     studySessionsInWindow: studyRecent.slice(0, 8),
@@ -515,12 +555,12 @@ export async function buildFlatDirectorContext(
   const influenceBlock = gl('influence') ? {
     ops7d: influenceOps,
     influenceParams: {
-      miDepthEma: influenceParams.miDepthEma,
-      miEfficacyEma: influenceParams.miEfficacyEma,
-      miDoseTargetWeekly: influenceParams.miDoseTargetWeekly,
-      nudgeEfficacyEma: influenceParams.nudgeEfficacyEma,
+      miDepthEma: influenceParams!.miDepthEma,
+      miEfficacyEma: influenceParams!.miEfficacyEma,
+      miDoseTargetWeekly: influenceParams!.miDoseTargetWeekly,
+      nudgeEfficacyEma: influenceParams!.nudgeEfficacyEma,
     },
-    influenceDirective: formatInfluenceDirectiveForPrompt(influenceDirective),
+    influenceDirective: formatInfluenceDirectiveForPrompt(influenceDirective!),
     recentEntries: recentInfluence,
     throttle: influenceThrottle,
     contacts: activeContacts.map((c) => ({
@@ -544,10 +584,10 @@ export async function buildFlatDirectorContext(
   const nutritionBlock = gl('nutrition') ? {
     ops7d: nutritionOps,
     nutritionParams: {
-      proteinBaselineEma: nutritionParams.proteinBaselineEma,
-      calorieBaselineEma: nutritionParams.calorieBaselineEma,
-      adherenceEma: nutritionParams.adherenceEma,
-      loggingDoseTargetMeals: nutritionParams.loggingDoseTargetMeals,
+      proteinBaselineEma: nutritionParams!.proteinBaselineEma,
+      calorieBaselineEma: nutritionParams!.calorieBaselineEma,
+      adherenceEma: nutritionParams!.adherenceEma,
+      loggingDoseTargetMeals: nutritionParams!.loggingDoseTargetMeals,
     },
     goal: activeNutritionGoal
       ? {
@@ -560,10 +600,10 @@ export async function buildFlatDirectorContext(
       ? {
           calories: todayNutritionDay.calories,
           protein: todayNutritionDay.protein,
-          proteinGap: nutritionOps.proteinGap,
+          proteinGap: nutritionOps!.proteinGap,
         }
       : null,
-    nutritionDirective: formatNutritionDirectiveForPrompt(nutritionDirective),
+    nutritionDirective: formatNutritionDirectiveForPrompt(nutritionDirective!),
     constraintKey: 'nutrition.adherence',
   } : {};
 
@@ -590,10 +630,10 @@ export async function buildFlatDirectorContext(
     synergy: getSynergySummary(readiness),
     ops7d: integrationOps,
     integrationParams: {
-      complianceTargetEma: integrationParams.complianceTargetEma,
-      debriefTargetEma: integrationParams.debriefTargetEma,
-      synergyGapTolerance: integrationParams.synergyGapTolerance,
-      auditIntervalDaysEma: integrationParams.auditIntervalDaysEma,
+      complianceTargetEma: integrationParams!.complianceTargetEma,
+      debriefTargetEma: integrationParams!.debriefTargetEma,
+      synergyGapTolerance: integrationParams!.synergyGapTolerance,
+      auditIntervalDaysEma: integrationParams!.auditIntervalDaysEma,
     },
     integrationDirective: integrationDirective
       ? formatIntegrationDirectiveForPrompt(integrationDirective)
@@ -605,13 +645,9 @@ export async function buildFlatDirectorContext(
     constraintKey: 'integration.weekly',
   } : {};
 
-  const fitnessLevels = gl('foundation') ? await getFitnessLevels() : {
-    hift: 0,
-    gpp: 0,
-    warmup: 0,
-    stretch: 0,
-    manualOverride: null,
-  };
+  const fitnessLevels = gl('foundation')
+    ? await getFitnessLevels()
+    : DEFAULT_FITNESS_LEVELS;
   const gppRotationNext = gl('foundation') ? await getRecommendedGppSubtype() : null;
   const workoutStats: Record<string, { totalCount: number; lastDate: string | null }> = {};
   const kinds: WorkoutKind[] = gl('foundation') ? [
@@ -664,10 +700,10 @@ export async function buildFlatDirectorContext(
       manualOverride: fitnessLevels.manualOverride,
     },
     trainingParams: {
-      strengthPull: trainingParams.strengthPull,
-      strengthPush: trainingParams.strengthPush,
-      fatigue: trainingParams.fatigue,
-      recoveryPrior: trainingParams.recoveryPrior,
+      strengthPull: trainingParams!.strengthPull,
+      strengthPush: trainingParams!.strengthPush,
+      fatigue: trainingParams!.fatigue,
+      recoveryPrior: trainingParams!.recoveryPrior,
     },
     loadModifiers,
     gppRotationNext,

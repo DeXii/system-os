@@ -60,10 +60,12 @@ npx wrangler deploy
 | `VITE_FIREBASE_PROJECT_ID` | Firebase projectId |
 | `VITE_FIREBASE_APP_ID` | Firebase appId |
 | `VITE_GROQ_PROXY_URL` | URL Cloudflare worker |
-| `VITE_PROXY_TOKEN` | Опционально, если включён на worker |
+| `VITE_PROXY_TOKEN` | Тот же токен, что `PROXY_TOKEN` на worker (обязателен, если secret задан на worker) |
 | `VITE_BASE_PATH` | `/` для `username.github.io`; `/REPO/` для project pages |
+| `CLOUDFLARE_API_TOKEN` | API token с правом **Workers Scripts → Edit** (для workflow [deploy-groq-proxy.yml](../.github/workflows/deploy-groq-proxy.yml)) |
+| `CLOUDFLARE_ACCOUNT_ID` | Account ID из обзора аккаунта Cloudflare (тот же workflow) |
 
-После push в `main` workflow **Deploy to GitHub Pages** соберёт и опубликует `dist`.
+После push в `main` workflow **Deploy to GitHub Pages** соберёт и опубликует `dist`. При изменении `workers/groq-proxy/**` запускается **Deploy Groq proxy** — без `CLOUDFLARE_*` secrets deploy упадёт с ошибкой про `CLOUDFLARE_API_TOKEN`.
 
 ## 4. Локальная разработка
 

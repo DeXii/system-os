@@ -4,7 +4,6 @@ import {
   buildFlatDirectorContext,
   splitLayeredContext,
   type ContextLookbackDays,
-  type WorkoutContextOptions,
 } from '../context-builder';
 import { getCachedContextJson, contextCacheKey } from '../../cache/context-cache';
 import { getContextManifest, resolveManifestLookback } from '../prompts/registry/context-manifest';
@@ -19,7 +18,6 @@ export async function buildDirectorContextForTask(
   taskId: TaskId,
   options?: BuildDirectorContextOptions
 ): Promise<string> {
-  const manifest = getContextManifest(taskId);
   const lookbackDays = resolveManifestLookback(taskId, options?.lookbackDays);
   const scope = options?.scope ?? resolveScope(taskId);
   const workoutKind = options?.workoutContext?.kind;
