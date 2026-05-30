@@ -28,6 +28,10 @@ import type {
   WorkoutPlan,
 } from '../domain/types';
 import { gppKindFromSubtype } from '../domain/types';
+import {
+  applyLoadCapToPlanned,
+  getFoundationLoadModifiers,
+} from './foundation-load';
 
 function clampReps(n: number, min = 3, max = 12): number {
   return Math.max(min, Math.min(max, Math.round(n)));
@@ -218,9 +222,11 @@ async function plannedFromCatalog(
     ex.defaultTargetReps ?? 8,
     ex.defaultTargetSec ?? 30
   );
+  const mods = await getFoundationLoadModifiers();
+  const cappedSets = clampSets(Math.max(1, Math.round(sets * mods.volumeMultiplier)));
   return {
     exerciseId: ex.id,
-    sets: clampSets(sets),
+    sets: cappedSets,
     targetReps: targets.targetReps,
     targetSeconds: targets.targetSeconds,
     measure,
@@ -229,19 +235,24 @@ async function plannedFromCatalog(
 }
 
 export async function buildHiftPlanLocal(date = todayKey()): Promise<WorkoutPlan> {
-  const exercises = buildPlannedFromTemplate(LOCAL_HIFT);
+  const mods = await getFoundationLoadModifiers();
+  let exercises = buildPlannedFromTemplate(LOCAL_HIFT);
+  exercises = applyLoadCapToPlanned(exercises, mods.volumeMultiplier);
+  const rounds = mods.deload ? 2 : 3;
 
   const plan: WorkoutPlan = {
     id: uid(),
     date,
     kind: 'hift',
     structure: 'circuit',
-    rounds: 3,
-    roundRestSec: 120,
+    rounds,
+    roundRestSec: mods.deload ? 150 : 120,
     circuitExerciseIds: LOCAL_HIFT.map((e) => e.exerciseId),
     exercises,
     status: 'planned',
-    notes: 'Фиксированный HIFT (без ИИ)',
+    notes: mods.deload
+      ? `Фиксированный HIFT (deload ×${mods.volumeMultiplier.toFixed(2)})`
+      : 'Фиксированный HIFT (без ИИ)',
   };
   await db.workoutPlans.put(plan);
   return plan;
@@ -253,7 +264,9 @@ export async function buildGppPlanLocal(
 ): Promise<WorkoutPlan> {
   const kind = gppKindFromSubtype(subtype);
   const template = getLocalTemplate(subtype);
-  const exercises = buildPlannedFromTemplate(template);
+  const mods = await getFoundationLoadModifiers();
+  let exercises = buildPlannedFromTemplate(template);
+  exercises = applyLoadCapToPlanned(exercises, mods.volumeMultiplier);
 
   const plan: WorkoutPlan = {
     id: uid(),
@@ -263,7 +276,9 @@ export async function buildGppPlanLocal(
     gppSubtype: subtype,
     exercises,
     status: 'planned',
-    notes: `Фиксированный GPP ${subtype} (без ИИ) · ${templateNotesLabel(template)}`,
+    notes: mods.deload
+      ? `GPP ${subtype} (deload) · ${templateNotesLabel(template)}`
+      : `Фиксированный GPP ${subtype} (без ИИ) · ${templateNotesLabel(template)}`,
   };
   await db.workoutPlans.put(plan);
   return plan;

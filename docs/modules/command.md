@@ -37,7 +37,7 @@ No data in axis tables for 14 days → axis score = **50**.
 
 ### FOUNDATION (100 max)
 - Training 7d: min(40, sessions/3 × 40)
-- ACFT: 25 baseline + 15 if retest < 84 days
+- BFT (Bar Fitness Test): 25 baseline + 15 if retest < 90 days (`bftEvents`)
 - Recovery 7d: min(35, days with sleep≥7 + nutrition + hydration) × 5
 
 ### REGULATION

@@ -6,7 +6,7 @@ import {
   computeFollowUpDueDate,
   getPendingDecisionFollowUps,
 } from '@/core/engines/decision-followup';
-import type { DecisionLogEntry } from '@/core/domain/types';
+import type { DecisionLogEntry, DecisionOutcomeScore, FocusRating } from '@/core/domain/types';
 import { GlossaryZone } from '@/ui/glossary';
 
 interface Props {
@@ -25,10 +25,12 @@ export function DecisionLogPanel({ onSaved, linkedScenarioId, defaultTitle }: Pr
     choice: '',
     expectedOutcome: '',
     actualOutcome: '',
+    confidence: '3',
     followUpDueDate: computeFollowUpDueDate(),
   });
   const [closeId, setCloseId] = useState('');
   const [closeOutcome, setCloseOutcome] = useState('');
+  const [closeOutcomeScore, setCloseOutcomeScore] = useState<DecisionOutcomeScore>(0);
 
   const load = async () => {
     setLogs(await db.decisionLogs.orderBy('date').reverse().limit(8).toArray());
@@ -52,6 +54,7 @@ export function DecisionLogPanel({ onSaved, linkedScenarioId, defaultTitle }: Pr
       alternatives: form.alternatives,
       choice: form.choice,
       expectedOutcome: form.expectedOutcome,
+      confidence: Number(form.confidence) as FocusRating,
       actualOutcome: form.actualOutcome || undefined,
       followUpDueDate: form.actualOutcome?.trim()
         ? undefined
@@ -65,6 +68,7 @@ export function DecisionLogPanel({ onSaved, linkedScenarioId, defaultTitle }: Pr
       choice: '',
       expectedOutcome: '',
       actualOutcome: '',
+      confidence: '3',
       followUpDueDate: computeFollowUpDueDate(),
     });
     load();
@@ -73,7 +77,7 @@ export function DecisionLogPanel({ onSaved, linkedScenarioId, defaultTitle }: Pr
 
   const closeFollowUp = async () => {
     if (!closeId || !closeOutcome.trim()) return;
-    await closeDecisionFollowUp(closeId, closeOutcome.trim());
+    await closeDecisionFollowUp(closeId, closeOutcome.trim(), closeOutcomeScore);
     setCloseId('');
     setCloseOutcome('');
     load();
@@ -115,6 +119,20 @@ export function DecisionLogPanel({ onSaved, linkedScenarioId, defaultTitle }: Pr
             value={closeOutcome}
             onChange={(e) => setCloseOutcome(e.target.value)}
           />
+          <select
+            className="select"
+            style={{ marginTop: 6 }}
+            value={closeOutcomeScore}
+            onChange={(e) =>
+              setCloseOutcomeScore(Number(e.target.value) as DecisionOutcomeScore)
+            }
+          >
+            <option value={2}>Исход: сильно лучше ожидания</option>
+            <option value={1}>Лучше</option>
+            <option value={0}>Как ожидалось</option>
+            <option value={-1}>Хуже</option>
+            <option value={-2}>Сильно хуже</option>
+          </select>
           <button
             type="button"
             className="btn btn-sm btn-primary"
@@ -155,6 +173,17 @@ export function DecisionLogPanel({ onSaved, linkedScenarioId, defaultTitle }: Pr
           className="input"
           value={form.choice}
           onChange={(e) => setForm({ ...form, choice: e.target.value })}
+        />
+      </div>
+      <div className="form-row">
+        <label className="label">Уверенность (1–5)</label>
+        <input
+          className="input"
+          type="number"
+          min={1}
+          max={5}
+          value={form.confidence}
+          onChange={(e) => setForm({ ...form, confidence: e.target.value })}
         />
       </div>
       <div className="form-row">

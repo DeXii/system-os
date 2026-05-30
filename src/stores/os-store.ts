@@ -6,7 +6,6 @@ import { computeOperatorMode } from '@/core/engines/operator-mode';
 import { buildTodayQueue } from '@/core/engines/week-schedule';
 import { todayKey } from '@/core/db';
 import {
-  subscribeDomainEvent,
   subscribeKernel,
   subscribeOsRefresh,
   getRecentEvents,
@@ -58,6 +57,20 @@ const defaultModuleStatuses: Record<ModuleId, ModuleStatus> = {
 let wired = false;
 let hydrateGeneration = 0;
 
+function profileContentEqual(
+  a: OperatorProfile | null,
+  b: OperatorProfile | null
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return a === b;
+  return (
+    a.id === b.id &&
+    a.currentStage === b.currentStage &&
+    a.onboarded === b.onboarded &&
+    JSON.stringify(a.unlockedStages) === JSON.stringify(b.unlockedStages)
+  );
+}
+
 export const useOsStore = create<OsStoreState>((set, get) => ({
   profile: null,
   readiness: defaultReadiness,
@@ -76,8 +89,10 @@ export const useOsStore = create<OsStoreState>((set, get) => ({
     const queue = await buildTodayQueue(todayKey());
     const ev = await getRecentEvents(30);
     if (gen !== hydrateGeneration) return;
+    const prev = get().profile;
+    const nextProfile = p ?? null;
     set({
-      profile: p ?? null,
+      profile: profileContentEqual(prev, nextProfile) ? prev : nextProfile,
       readiness: r,
       moduleStatuses: statuses,
       operatorMode: mode,
@@ -99,16 +114,14 @@ export function wireOsStoreSubscriptions(): () => void {
   void store.hydrate();
   const u1 = subscribeKernel(() => store.invalidate());
   const u2 = subscribeOsRefresh(() => store.invalidate());
-  const u3 = subscribeDomainEvent(() => store.invalidate());
-  let u4 = () => {};
+  let u3 = () => {};
   void import('@/core/sync/tab-sync').then((tabSync) => {
-    u4 = tabSync.subscribeTabRefresh(() => store.invalidate());
+    u3 = tabSync.subscribeTabRefresh(() => store.invalidate());
   });
   return () => {
     u1();
     u2();
     u3();
-    u4();
     wired = false;
   };
 }

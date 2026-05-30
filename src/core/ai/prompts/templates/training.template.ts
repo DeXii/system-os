@@ -27,8 +27,13 @@ export function renderTrainingTemplate(params: TrainingTemplateParams = {}): str
     lines.push(
       variant.startsWith('cardio')
         ? 'Обязательно: set_cardio_session_plan.'
-        : 'Обязательно: set_workout_plan (только allowedExerciseIds).'
+        : 'Обязательно: set_workout_plan — exerciseId строго из foundation.allowedExerciseIds (не выдумывать id). Список упражнений только в JSON ## Действия OS, не в ## Вывод.'
     );
+    if (!variant.startsWith('cardio')) {
+      lines.push(
+        'Пример: [{"type":"set_workout_plan","payload":{"kind":"hift","exercises":[{"exerciseId":"hift_pullup","sets":3,"targetReps":6,"restSec":90}]}}]'
+      );
+    }
   }
 
   return lines.join('\n');

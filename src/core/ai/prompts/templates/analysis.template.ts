@@ -12,12 +12,16 @@ export function renderAnalysisTemplate(params: AnalysisTemplateParams): string {
   switch (kind) {
     case 'weekly':
       return `ЗАДАЧА: аудит недели.
+ОБЯЗАТЕЛЬНО: строки [РАСЧЁТ], [ДЕЙСТВИЕ], [ОТКАЗ] (если есть).
+Использовать integration.integrationDirective из fact; не противоречить blockers.
 Одна главная корректировка; synergy/bottleneck по fact.`;
     case 'pdp':
       return `ЗАДАЧА: PDP.
+ОБЯЗАТЕЛЬНО: [РАСЧЁТ], [ДЕЙСТВИЕ], [ОТКАЗ]. Использовать integrationDirective из fact.
 Почему фокус недели такой; один шаг по PDP.`;
     case 'stageGate':
       return `ЗАДАЧА: gate / demotion.
+ОБЯЗАТЕЛЬНО: [РАСЧЁТ], [ДЕЙСТВИЕ], [ОТКАЗ]. Использовать integrationDirective и stageProgress из fact.
 Минимальный план 7 дней; критерий advance.`;
     case 'doctrine':
       return `ЗАДАЧА: сверка doctrine.

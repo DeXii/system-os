@@ -319,3 +319,33 @@ export function resolveLookbackDays(
 export function isDeepAnalysisTask(taskId: TaskId): boolean {
   return taskId === 'deepAnalysis14d' || taskId === 'deepAnalysis30d';
 }
+
+const FOUNDATION_PLAN_TASK_IDS = new Set<TaskId>([
+  'planHift',
+  'planGpp',
+  'planWarmup',
+  'planStretch',
+  'planCardioIntense',
+  'planCardioEasy',
+  'planWorkout',
+]);
+
+export function isFoundationPlanTask(taskId: TaskId): boolean {
+  return FOUNDATION_PLAN_TASK_IDS.has(taskId);
+}
+
+export function isRegulationCoachTask(taskId: TaskId): boolean {
+  return taskId === 'regulationCoach';
+}
+
+export function isNutritionCoachTask(taskId: TaskId): boolean {
+  return taskId === 'nutritionCoach';
+}
+
+export function isInfluenceCoachTask(taskId: TaskId): boolean {
+  return taskId === 'influenceCoach';
+}
+
+export function isFoundationCardioPlanTask(taskId: TaskId): boolean {
+  return taskId === 'planCardioIntense' || taskId === 'planCardioEasy';
+}

@@ -2,6 +2,8 @@
 
 Релизная версия для **личного** использования: GitHub Pages + Firebase Firestore + Cloudflare Worker (Groq proxy).
 
+Локальный backup данных: export JSON **v17** (ARCHIVE → Export). Cloud sync использует те же таблицы, кроме `domainEvents`.
+
 ## 1. Firebase
 
 1. [Firebase Console](https://console.firebase.google.com/) → Create project.

@@ -23,10 +23,11 @@ export async function bumpGlobalRevision(): Promise<number> {
   const existing = await db.dbMeta.get('db-meta');
   const next = (existing?.globalRevision ?? 0) + 1;
   await db.dbMeta.put({
+    ...existing,
     id: 'db-meta',
     globalRevision: next,
     lastUpdated: now,
-    deviceId: getDeviceId(),
+    deviceId: existing?.deviceId ?? getDeviceId(),
   });
   return next;
 }

@@ -30,6 +30,12 @@ import type {
   SetLog,
   OperatorCalibration,
   OperatorFitnessLevels,
+  OperatorTrainingParams,
+  OperatorRegulationParams,
+  OperatorMindParams,
+  OperatorInfluenceParams,
+  OperatorNutritionParams,
+  OperatorIntegrationParams,
   WorkoutTypeStat,
   CardioSession,
   WorkoutKind,
@@ -82,6 +88,12 @@ export class AyanakojiDB extends Dexie {
   setLogs!: Table<SetLog, string>;
   operatorCalibration!: Table<OperatorCalibration, string>;
   operatorFitnessLevels!: Table<OperatorFitnessLevels, string>;
+  operatorTrainingParams!: Table<OperatorTrainingParams, string>;
+  operatorRegulationParams!: Table<OperatorRegulationParams, string>;
+  operatorMindParams!: Table<OperatorMindParams, string>;
+  operatorInfluenceParams!: Table<OperatorInfluenceParams, string>;
+  operatorNutritionParams!: Table<OperatorNutritionParams, string>;
+  operatorIntegrationParams!: Table<OperatorIntegrationParams, string>;
   workoutTypeStats!: Table<WorkoutTypeStat, WorkoutKind>;
   cardioSessions!: Table<CardioSession, string>;
   glossaryCache!: Table<GlossaryCacheEntry, string>;
@@ -392,6 +404,25 @@ export class AyanakojiDB extends Dexie {
       shoppingLists: 'id, planId, updatedAt',
       customIngredients: 'id, category',
       customDishes: 'id',
+    });
+    this.version(15).stores({
+      operatorTrainingParams: 'id',
+    });
+    this.version(16).stores({
+      operatorRegulationParams: 'id',
+    });
+    this.version(17).stores({
+      operatorMindParams: 'id',
+      decisionLogs: 'id, date, followUpDueDate',
+    });
+    this.version(18).stores({
+      operatorInfluenceParams: 'id',
+    });
+    this.version(19).stores({
+      operatorNutritionParams: 'id',
+    });
+    this.version(20).stores({
+      operatorIntegrationParams: 'id',
     });
   }
 }

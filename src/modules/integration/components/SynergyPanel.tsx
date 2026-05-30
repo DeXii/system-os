@@ -1,15 +1,46 @@
+import { useEffect, useState } from 'react';
 import { SYNERGY_COPY } from '@/content/integration-protocols';
 import { GlossaryZone } from '@/ui/glossary';
-import { getSynergySummary } from '@/core/engines/integration-metrics';
-import type { ReadinessScores } from '@/core/domain/types';
+import { buildIntegrationDirective, formatIntegrationDirectiveForPrompt } from '@/core/engines/integration-directive';
+import { getIntegrationOpsSummary, getSynergySummary } from '@/core/engines/integration-metrics';
+import { db } from '@/core/db';
+import { getStageProgress } from '@/core/engines/stage-progression';
+import type { OperatorProfile, ReadinessScores } from '@/core/domain/types';
 import { STAGE_LABELS } from '@/core/domain/types';
 
 interface Props {
   readiness: ReadinessScores;
+  profile: OperatorProfile;
 }
 
-export function SynergyPanel({ readiness }: Props) {
+export function SynergyPanel({ readiness, profile }: Props) {
   const s = getSynergySummary(readiness);
+  const [directiveLine, setDirectiveLine] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const ops = await getIntegrationOpsSummary(readiness);
+      const [pdp, progress] = await Promise.all([
+        db.pdp.toCollection().first(),
+        getStageProgress(),
+      ]);
+      const directive = await buildIntegrationDirective({
+        readiness,
+        ops,
+        profile,
+        progress,
+        pdp: pdp ?? null,
+        gateEval: progress.lastGateSnapshot ?? null,
+      });
+      if (!cancelled) {
+        setDirectiveLine(formatIntegrationDirectiveForPrompt(directive));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [readiness.global, profile.currentStage]);
 
   return (
     <div className="panel">
@@ -36,6 +67,19 @@ export function SynergyPanel({ readiness }: Props) {
         </p>
       </GlossaryZone>
       <div style={{ color: 'var(--accent)', marginTop: 6, fontSize: 12 }}>{s.recommendation}</div>
+      {directiveLine && (
+        <pre
+          style={{
+            marginTop: 8,
+            fontSize: 11,
+            fontFamily: 'var(--mono)',
+            whiteSpace: 'pre-wrap',
+            color: 'var(--text-dim)',
+          }}
+        >
+          {directiveLine}
+        </pre>
+      )}
     </div>
   );
 }

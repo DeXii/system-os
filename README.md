@@ -41,7 +41,7 @@
 ```text
 Shell     TopBar, Dock, KernelLog, CommandPalette, Onboarding, AuthGate
   ↓
-Modules   COMMAND, FOUNDATION, REGULATION, MIND, INFLUENCE, LIBRARY, INTEGRATION, DIRECTOR, ARCHIVE
+Modules   COMMAND, FOUNDATION, NUTRITION, REGULATION, MIND, INFLUENCE, LIBRARY, INTEGRATION, DIRECTOR, PROMPT, ARCHIVE
   ↓
 Core      engines, db, cache, sync, events, domain contracts
   ↓
@@ -62,8 +62,8 @@ AI        assemble context → Groq (proxy) → parse → applyDirectorActions
 src/
   app/           App, OsLayout, ErrorBoundary
   shell/         Dock, TopBar, AuthGate, Onboarding, BootScreen, CommandPalette
-  modules/       command, foundation, regulation, mind, influence,
-                 library, integration, director, archive
+  modules/       command, foundation, nutrition, regulation, mind, influence,
+                 library, integration, director, prompt, archive
   core/
     kernel/      commands (bootstrap, complete, director, stage) + automations
     engines/     readiness, scheduler, os-kernel, metrics, doctrine
@@ -100,8 +100,10 @@ src/
 | COMMAND | Центр дня: протокол, миссии, TODAY QUEUE, briefing/debrief, compliance |
 | LIBRARY | Каталог книг 4 уровней + еженедельное чтение (`os.reading.weekly`) |
 | INTEGRATION | Пирамида OS, synergy, PDP, weekly audit, stage progression |
+| NUTRITION | Питание: meal log, планы, shopping; свой directive (не 5-я ось readiness) |
 | DIRECTOR | ИИ Groq: задачи по scope, Action Cards |
-| ARCHIVE | Облако, экспорт/импорт, настройки Groq, история insights |
+| PROMPT | Превью system prompt и context JSON без вызова Groq |
+| ARCHIVE | Облако, экспорт/импорт v17, domain events, настройки Groq |
 
 Пирамида в INTEGRATION — **4 блока = 4 этапа OS** (`getPyramidStageScores`). Справочно в `stages.ts` есть `PYRAMID_LEVELS` (3 уровня PDF) — в UI PyramidPanel не используется.
 
@@ -121,13 +123,23 @@ src/
 
 ### FOUNDATION
 
-Этап 1: тренировки без зала (HIFT, GPP, зарядка, растяжка, кардио), калибровка, Bar Fitness Test, LIVE-режимы, recovery ops.
+Этап 1: тренировки без зала (HIFT, GPP, зарядка, растяжка, кардио), калибровка, **Bar Fitness Test (BFT)**, LIVE-режимы, recovery ops, `FoundationOpsSummary`.
 
 **Сущности:** `WorkoutPlan`, `SetLog`, `OperatorCalibration`, `BftEvent`, `dailyLogs`.
 
 **Kernel:** `afterWorkoutComplete` → слот done → readiness foundation.
 
 Подробнее: [docs/modules/foundation.md](docs/modules/foundation.md)
+
+### NUTRITION
+
+Dock tab: учёт питания, цели, meal plan, shopping list, curated catalog. **Не** пятый этап пирамиды — отдельные метрики и `buildNutritionDirective()`.
+
+**taskKey:** `nutrition.log`, `nutrition.plan`, `nutrition.review`.
+
+**Kernel:** `afterMealLogged`, `afterNutritionPlanUpdated`, `afterShoppingListGenerated`, `afterNutritionGoalSet`, `afterRecoveryOpsSaved`.
+
+Подробнее: [docs/modules/nutrition.md](docs/modules/nutrition.md)
 
 ### REGULATION
 
@@ -167,7 +179,7 @@ src/
 
 **Kernel:** `afterBookMarkedRead` → завершение reading mission.
 
-Подробнее: [docs/OS_INTEGRATION.md](docs/OS_INTEGRATION.md) (раздел LIBRARY)
+Подробнее: [docs/modules/library.md](docs/modules/library.md)
 
 ### INTEGRATION
 
@@ -187,9 +199,15 @@ UI: вкладка DIRECTOR + боковая панель в COMMAND и моду
 
 Подробнее: [docs/AI_DIRECTOR.md](docs/AI_DIRECTOR.md)
 
+### PROMPT
+
+Инспекция system prompt и context JSON **без** вызова Groq: preview vs run, выбор `TaskId`, scope foundation для plan-задач. Полезно для отладки manifest slices.
+
+Подробнее: [docs/modules/prompt.md](docs/modules/prompt.md)
+
 ### ARCHIVE
 
-Системный meta-слой: Groq settings (Proxy URL в `.env`, опционально ключ/модель в `localStorage`), cloud sync Firebase, export/import JSON v7, история DIRECTOR insights.
+Системный meta-слой: Groq settings (Proxy URL в `.env`, опционально ключ/модель в `localStorage`), cloud sync Firebase, export/import JSON **v17**, domain events (retention 30d), история DIRECTOR insights.
 
 Ключ Groq **не экспортируется** — после импорта на новом устройстве настройте заново в ARCHIVE.
 
@@ -216,11 +234,14 @@ UI: вкладка DIRECTOR + боковая панель в COMMAND и моду
 
 После записи факта в модуле — цепочка: обновить слот → compliance → readiness → hints:
 
-- `after-foundation` — setLogs, workout
-- `after-regulation` — HRV, дыхание, mindfulness, stress
-- `after-mind` — chess/go, reflection, scenario, decision
-- `after-influence` — MI, nudge, protocol, bias, observation
+- `after-foundation` — setLogs, workout, cardio
+- `after-nutrition` — meal log, plan, shopping, goals
+- `after-regulation` — HRV, дыхание, mindfulness, stress, trigger log
+- `after-mind` — chess/go, reflection, scenario, decision, study
+- `after-influence` — MI, nudge, protocol, bias, observation, contacts/operations
 - `after-integration` — PDP, weekly audit, reading
+
+После факта: `afterFactWrite` → domain event + invalidation cache ([`kernel/pipeline.ts`](src/core/kernel/pipeline.ts)).
 
 Низкоуровневые хелперы также в [`src/core/engines/os-kernel.ts`](src/core/engines/os-kernel.ts).
 
@@ -252,9 +273,10 @@ CONTEXT JSON (+ сообщение оператора)                      → 
 | Registry | `src/core/ai/prompts/registry/task-registry.ts` |
 | Assembly | `src/core/ai/prompts/builders/build-system-prompt.ts` |
 | Runtime | `src/core/ai/director/director-router.ts`, `director-service.ts` |
+| Context manifest | `src/core/ai/prompts/registry/context-manifest.ts`, `src/core/ai/context/assemble-context.ts` |
 | UI metadata | `src/core/ai/director-tasks.ts` |
 
-Контекст включает `constraints` (flags, `aiMode`) из `constraints-builder.ts`. Персона: аналитический стиль, тактическое влияние, дисциплина информации в INFLUENCE-задачах.
+Контекст **task-scoped**: каждая кнопка шлёт только slices из manifest (не весь scope). Full JSON — `freeCommand` и deep analysis. `constraints` / `aiMode` из `constraints-builder.ts`.
 
 ### Формат ответа
 
@@ -402,7 +424,14 @@ npm run preview
 | [docs/modules/influence.md](docs/modules/influence.md) | INFLUENCE |
 | [docs/modules/contacts-operations.md](docs/modules/contacts-operations.md) | Контакты и операции |
 | [docs/modules/integration.md](docs/modules/integration.md) | INTEGRATION |
+| [docs/modules/nutrition.md](docs/modules/nutrition.md) | NUTRITION |
+| [docs/modules/library.md](docs/modules/library.md) | LIBRARY |
+| [docs/modules/prompt.md](docs/modules/prompt.md) | PROMPT |
 | [docs/modules/archive.md](docs/modules/archive.md) | ARCHIVE |
+
+### История документации
+
+- **2026-05-31** — синхронизация с export v17, модули nutrition/prompt/library, domain-events retention, OpsSummary/directives, context slices.
 
 ---
 

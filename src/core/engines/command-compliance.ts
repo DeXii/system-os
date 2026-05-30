@@ -96,6 +96,8 @@ export async function refreshDayReportCompliance(date = todayKey()): Promise<Day
     compliance: snap.compliance,
   };
   await db.dayReports.put(updated);
+  const { updateIntegrationParamsFromDayReport } = await import('./integration-params');
+  await updateIntegrationParamsFromDayReport(updated);
   return updated;
 }
 
@@ -117,5 +119,7 @@ export async function markDebriefDone(
     stageAdjustment: delta,
   };
   await db.dayReports.put(updated);
+  const { updateIntegrationParamsFromDayReport } = await import('./integration-params');
+  await updateIntegrationParamsFromDayReport(updated);
   return updated;
 }

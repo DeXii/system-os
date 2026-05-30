@@ -66,14 +66,18 @@ export function IntegrationModule({
       </div>
 
       <div className="integration-section" {...tabHidden('overview')}>
-        <IntegrationOpsSummary readiness={readiness} onRefresh={handleActivity} />
+        <IntegrationOpsSummary
+          readiness={readiness}
+          profile={profile}
+          onRefresh={handleActivity}
+        />
         <div className="grid-2">
           <PyramidPanel
             readiness={readiness}
             currentStageId={profile.currentStage}
             onNavigateModule={onNavigateModule}
           />
-          <SynergyPanel readiness={readiness} />
+          <SynergyPanel readiness={readiness} profile={profile} />
         </div>
         <DoctrinePanel onSaved={handleActivity} />
       </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { db, todayKey } from '@/core/db';
 import { afterHrvComplete } from '@/core/engines/os-kernel';
+import { RegulationValidationError } from '@/core/kernel/automations/after-regulation';
 import {
   getHrvBaseline14d,
   getHrvTrend,
@@ -33,6 +34,7 @@ export function HrvPanel({ onSaved }: Props) {
     notes: '',
   });
   const [alert, setAlert] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const load = async () => {
     setHistory(await db.hrvEntries.orderBy('date').reverse().limit(14).toArray());
@@ -45,6 +47,7 @@ export function HrvPanel({ onSaved }: Props) {
   }, []);
 
   const save = async () => {
+    setSaveError(null);
     const entry = {
       date: todayKey(),
       rmssd: form.rmssd ? Number(form.rmssd) : undefined,
@@ -53,21 +56,29 @@ export function HrvPanel({ onSaved }: Props) {
       subjectiveReadiness: Number(form.subjectiveReadiness),
       notes: form.notes || undefined,
     };
-    if (entry.rmssd != null && baseline != null && isHrvBelowBaseline(entry as HrvEntry, baseline)) {
-      setAlert('RMSSD ниже baseline — зона recovery, избегайте Wim Hof сегодня');
-    } else {
-      setAlert(null);
+    try {
+      if (entry.rmssd != null && (await isHrvBelowBaseline(entry as HrvEntry))) {
+        setAlert('RMSSD ниже baseline (z-score) — recovery, избегайте Wim Hof сегодня');
+      } else {
+        setAlert(null);
+      }
+      await afterHrvComplete(entry);
+      setForm({
+        rmssd: '',
+        restingHr: '',
+        source: 'manual',
+        subjectiveReadiness: '7',
+        notes: '',
+      });
+      load();
+      onSaved();
+    } catch (e) {
+      if (e instanceof RegulationValidationError) {
+        setSaveError(e.errors.join('; '));
+      } else {
+        setSaveError('Не удалось сохранить HRV');
+      }
     }
-    await afterHrvComplete(entry);
-    setForm({
-      rmssd: '',
-      restingHr: '',
-      source: 'manual',
-      subjectiveReadiness: '7',
-      notes: '',
-    });
-    load();
-    onSaved();
   };
 
   const maxRmssd = Math.max(...trend.map((t) => t.rmssd), 1);
@@ -87,6 +98,11 @@ export function HrvPanel({ onSaved }: Props) {
         </p>
       )}
       {alert && <div className="alert-banner">{alert}</div>}
+      {saveError && (
+        <div className="alert-banner" style={{ borderColor: 'var(--danger)' }}>
+          {saveError}
+        </div>
+      )}
 
       <div className="form-row">
         <label className="label">RMSSD</label>

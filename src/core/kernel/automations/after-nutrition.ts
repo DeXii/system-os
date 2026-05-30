@@ -1,7 +1,13 @@
 import { TASK_KEYS } from '@/content/task-keys';
 import { db, uid } from '../../db';
 import type { MealEntry, NutritionGoal, ShoppingList } from '../../domain/types';
-import { aggregateDay, syncDailyLogNutrition } from '../../engines/nutrition-metrics';
+import {
+  aggregateDay,
+  maybeCompleteNutritionReview,
+  syncDailyLogNutrition,
+} from '../../engines/nutrition-metrics';
+import { getActiveGoal } from '../../engines/nutrition-goal-engine';
+import { updateNutritionParamsFromDay } from '../../engines/nutrition-params';
 import { completeByTaskKey } from '../commands/complete';
 import { afterFactWrite } from '../pipeline';
 
@@ -13,7 +19,11 @@ export async function afterNutritionGoalSet(goal: NutritionGoal): Promise<void> 
 export async function afterMealLogged(entry: Omit<MealEntry, 'id'>): Promise<MealEntry> {
   const row: MealEntry = { ...entry, id: uid() };
   await db.mealEntries.put(row);
-  await aggregateDay(entry.date);
+  const day = await aggregateDay(entry.date);
+  const goal = await getActiveGoal();
+  if (goal) {
+    await updateNutritionParamsFromDay(day, goal);
+  }
   await syncDailyLogNutrition(entry.date);
   await afterFactWrite({
     type: 'READINESS_INVALIDATED',
@@ -22,6 +32,7 @@ export async function afterMealLogged(entry: Omit<MealEntry, 'id'>): Promise<Mea
   if (entry.completed) {
     await completeByTaskKey(TASK_KEYS.nutritionLog, entry.date, 'nutrition');
   }
+  await maybeCompleteNutritionReview(entry.date);
   return row;
 }
 
@@ -32,6 +43,8 @@ export async function afterShoppingListGenerated(list: ShoppingList): Promise<Sh
 }
 
 export async function afterNutritionPlanUpdated(planId: string): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  await completeByTaskKey(TASK_KEYS.nutritionPlanApply, today, 'nutrition');
   await afterFactWrite({ type: 'READINESS_INVALIDATED', reason: `plan_updated:${planId}` });
 }
 

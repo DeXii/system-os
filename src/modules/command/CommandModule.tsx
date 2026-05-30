@@ -73,9 +73,8 @@ export function CommandModule({ profile, readiness, onRefresh, onOpenIntegration
     setLocalProfile(profile);
   }, [profile]);
 
-  const load = useCallback(async () => {
+  const reloadDayData = useCallback(async () => {
     if (localProfile) {
-      await ensureDayBootstrapped(localProfile, today);
       const evaluated = await evaluateStageProgression(localProfile);
       setProgress(evaluated);
     } else {
@@ -90,12 +89,22 @@ export function CommandModule({ profile, readiness, onRefresh, onOpenIntegration
     setCompliance(await getTodayCompliance(today));
   }, [localProfile, today]);
 
+  const bootstrapDay = useCallback(async () => {
+    if (!localProfile) return;
+    await ensureDayBootstrapped(localProfile, today);
+  }, [localProfile, today]);
+
   useAsyncEffect(
     async (signal) => {
-      await load();
+      if (!localProfile) {
+        setProgress(await getStageProgress());
+        return;
+      }
+      await bootstrapDay();
       if (signal.aborted) return;
+      await reloadDayData();
     },
-    [load]
+    [localProfile?.id, today, bootstrapDay, reloadDayData]
   );
 
   const afterDataChange = async () => {
@@ -103,7 +112,7 @@ export function CommandModule({ profile, readiness, onRefresh, onOpenIntegration
     setCompliance(await getTodayCompliance(today));
     const report = await db.dayReports.where('date').equals(today).first();
     setDayReport(report ?? null);
-    load();
+    await reloadDayData();
     onRefresh();
   };
 

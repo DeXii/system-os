@@ -8,11 +8,12 @@ import type {
   StageId,
 } from '../domain/types';
 import { nextStage, STAGE_ORDER } from '../domain/types';
+import { INTEGRATION_THRESHOLDS as T } from './integration-thresholds';
 import { shouldThrottleCognitiveLoad } from './mind-metrics';
 
-export const QUALIFYING_DAYS_REQUIRED = 10;
-export const SOFT_SCORE_REQUIRED = 80;
-export const READINESS_HISTORY_DAYS = 14;
+export const QUALIFYING_DAYS_REQUIRED = T.qualifyingDaysRequired;
+export const SOFT_SCORE_REQUIRED = T.softScoreRequired;
+export const READINESS_HISTORY_DAYS = T.readinessHistoryDays;
 
 export interface StageGateContext {
   profile: OperatorProfile;
@@ -62,7 +63,7 @@ function countHistoryWhere(
   return slice.filter(predicate).length;
 }
 
-function computeSoftScore(criteria: StageGateCriterion[]): number {
+export function computeSoftScore(criteria: StageGateCriterion[]): number {
   const soft = criteria.filter((c) => c.severity === 'soft');
   if (soft.length === 0) return 100;
   const totalWeight = soft.reduce((a, c) => a + c.weight, 0);
@@ -73,33 +74,38 @@ function computeSoftScore(criteria: StageGateCriterion[]): number {
 function evaluateFoundationToRegulation(ctx: StageGateContext): StageGateCriterion[] {
   const { readiness, complianceAvg7d, debriefRate7d, briefingRate7d, bftDaysSince, trainingSessions7d, readinessHistory } =
     ctx;
-  const bftOk = bftDaysSince != null && bftDaysSince <= 90;
-  const trainingOk = trainingSessions7d >= 2;
-  const foundationDays65 = countHistoryWhere(readinessHistory, 14, (e) => e.foundation >= 65);
+  const g = T.f2r;
+  const bftOk = bftDaysSince != null && bftDaysSince <= g.bftMaxDays;
+  const trainingOk = trainingSessions7d >= g.trainingMin7d;
+  const foundationDays65 = countHistoryWhere(
+    readinessHistory,
+    14,
+    (e) => e.foundation >= g.foundationHistoryFloor
+  );
 
   return [
-    criterion('foundation_score', 'Readiness FOUNDATION', readiness.foundation >= 68, readiness.foundation, '≥68', 'blocker'),
-    criterion('global_score', 'Global readiness', readiness.global >= 58, readiness.global, '≥58', 'blocker'),
-    criterion('compliance_7d', 'Compliance 7д', complianceAvg7d >= 62, complianceAvg7d, '≥62%', 'blocker'),
-    criterion('debrief_7d', 'Debrief rate 7д', debriefRate7d >= 75, debriefRate7d, '≥75%', 'blocker'),
+    criterion('foundation_score', 'Readiness FOUNDATION', readiness.foundation >= g.foundationMin, readiness.foundation, `≥${g.foundationMin}`, 'blocker'),
+    criterion('global_score', 'Global readiness', readiness.global >= g.globalMin, readiness.global, `≥${g.globalMin}`, 'blocker'),
+    criterion('compliance_7d', 'Compliance 7д', complianceAvg7d >= g.complianceMin, complianceAvg7d, `≥${g.complianceMin}%`, 'blocker'),
+    criterion('debrief_7d', 'Debrief rate 7д', debriefRate7d >= g.debriefMin, debriefRate7d, `≥${g.debriefMin}%`, 'blocker'),
     criterion(
       'bft_or_training',
       'BFT ≤90д или ≥2 тренировки/7д',
       bftOk || trainingOk,
       bftOk ? `BFT ${bftDaysSince}д` : `${trainingSessions7d} трен.`,
-      'BFT≤90д | ≥2 трен.',
+      `BFT≤${g.bftMaxDays}д | ≥${g.trainingMin7d} трен.`,
       'blocker'
     ),
     criterion(
       'foundation_days_14',
-      '10/14 дней foundation≥65',
-      foundationDays65 >= 10,
+      `10/14 дней foundation≥${g.foundationHistoryFloor}`,
+      foundationDays65 >= g.foundationDays14Min,
       `${foundationDays65}/14`,
-      '≥10/14',
+      `≥${g.foundationDays14Min}/14`,
       'soft',
       15
     ),
-    criterion('briefing_7d', 'Briefing rate 7д', briefingRate7d >= 50, briefingRate7d, '≥50%', 'soft', 10),
+    criterion('briefing_7d', 'Briefing rate 7д', briefingRate7d >= g.briefingMin, briefingRate7d, `≥${g.briefingMin}%`, 'soft', 10),
   ];
 }
 
@@ -112,28 +118,29 @@ function evaluateRegulationToMind(ctx: StageGateContext): StageGateCriterion[] {
     hrvDays7d,
     readinessHistory,
   } = ctx;
+  const g = T.r2m;
   const regulationStreak14 = countHistoryWhere(
     readinessHistory,
     14,
-    (e) => e.regulation >= 60 && e.foundation >= 50
+    (e) => e.regulation >= g.regulationHistoryFloor && e.foundation >= g.foundationHistoryFloor
   );
 
   return [
-    criterion('foundation_floor', 'FOUNDATION (база)', readiness.foundation >= 52, readiness.foundation, '≥52', 'blocker'),
-    criterion('regulation_score', 'Readiness REGULATION', readiness.regulation >= 70, readiness.regulation, '≥70', 'blocker'),
-    criterion('global_score', 'Global readiness', readiness.global >= 62, readiness.global, '≥62', 'blocker'),
+    criterion('foundation_floor', 'FOUNDATION (база)', readiness.foundation >= g.foundationFloor, readiness.foundation, `≥${g.foundationFloor}`, 'blocker'),
+    criterion('regulation_score', 'Readiness REGULATION', readiness.regulation >= g.regulationMin, readiness.regulation, `≥${g.regulationMin}`, 'blocker'),
+    criterion('global_score', 'Global readiness', readiness.global >= g.globalMin, readiness.global, `≥${g.globalMin}`, 'blocker'),
     criterion(
       'regulation_practice',
       'Regulation practice 14д',
-      regulationStreak14 >= 4,
+      regulationStreak14 >= g.regulationPractice14Min,
       regulationStreak14,
-      '≥4/14',
+      `≥${g.regulationPractice14Min}/14`,
       'blocker'
     ),
-    criterion('hrv_7d', 'HRV записей 7д', hrvDays7d >= 3, hrvDays7d, '≥3', 'blocker'),
-    criterion('debrief_7d', 'Debrief rate 7д', debriefRate7d >= 80, debriefRate7d, '≥80%', 'blocker'),
-    criterion('resonant_7d', 'Резонансное дыхание 7д', resonantBreath7d >= 2, resonantBreath7d, '≥2', 'soft', 12),
-    criterion('compliance_7d', 'Compliance 7д', complianceAvg7d >= 65, complianceAvg7d, '≥65%', 'soft', 10),
+    criterion('hrv_7d', 'HRV записей 7д', hrvDays7d >= g.hrvDays7Min, hrvDays7d, `≥${g.hrvDays7Min}`, 'blocker'),
+    criterion('debrief_7d', 'Debrief rate 7д', debriefRate7d >= g.debriefMin, debriefRate7d, `≥${g.debriefMin}%`, 'blocker'),
+    criterion('resonant_7d', 'Резонансное дыхание 7д', resonantBreath7d >= g.resonant7Min, resonantBreath7d, `≥${g.resonant7Min}`, 'soft', 12),
+    criterion('compliance_7d', 'Compliance 7д', complianceAvg7d >= g.complianceMin, complianceAvg7d, `≥${g.complianceMin}%`, 'soft', 10),
   ];
 }
 
@@ -146,26 +153,30 @@ function evaluateMindToInfluence(ctx: StageGateContext): StageGateCriterion[] {
     cognitiveThrottle,
     readinessHistory,
   } = ctx;
+  const g = T.m2i;
   const mindStreak14 = countHistoryWhere(
     readinessHistory,
     14,
-    (e) => e.mind >= 55 && e.foundation >= 48 && e.regulation >= 50
+    (e) =>
+      e.mind >= g.mindHistoryFloor &&
+      e.foundation >= g.foundationHistoryFloor &&
+      e.regulation >= g.regulationHistoryFloor
   );
 
   return [
-    criterion('foundation_floor', 'FOUNDATION (база)', readiness.foundation >= 48, readiness.foundation, '≥48', 'blocker'),
-    criterion('regulation_floor', 'REGULATION (база)', readiness.regulation >= 50, readiness.regulation, '≥50', 'blocker'),
-    criterion('mind_score', 'Readiness MIND', readiness.mind >= 68, readiness.mind, '≥68', 'blocker'),
-    criterion('global_score', 'Global readiness', readiness.global >= 65, readiness.global, '≥65', 'blocker'),
+    criterion('foundation_floor', 'FOUNDATION (база)', readiness.foundation >= g.foundationFloor, readiness.foundation, `≥${g.foundationFloor}`, 'blocker'),
+    criterion('regulation_floor', 'REGULATION (база)', readiness.regulation >= g.regulationFloor, readiness.regulation, `≥${g.regulationFloor}`, 'blocker'),
+    criterion('mind_score', 'Readiness MIND', readiness.mind >= g.mindMin, readiness.mind, `≥${g.mindMin}`, 'blocker'),
+    criterion('global_score', 'Global readiness', readiness.global >= g.globalMin, readiness.global, `≥${g.globalMin}`, 'blocker'),
     criterion(
       'mind_practice',
       'Mind practice 14д',
-      mindStreak14 >= 3,
+      mindStreak14 >= g.mindPractice14Min,
       mindStreak14,
-      '≥3/14',
+      `≥${g.mindPractice14Min}/14`,
       'blocker'
     ),
-    criterion('scenarios_14d', 'SWOT/сценарии 14д', scenarios14d >= 1, scenarios14d, '≥1', 'blocker'),
+    criterion('scenarios_14d', 'SWOT/сценарии 14д', scenarios14d >= g.scenarios14Min, scenarios14d, `≥${g.scenarios14Min}`, 'blocker'),
     criterion(
       'cognitive_throttle',
       'Когнитивная нагрузка',
@@ -174,8 +185,8 @@ function evaluateMindToInfluence(ctx: StageGateContext): StageGateCriterion[] {
       'без throttle',
       'blocker'
     ),
-    criterion('compliance_7d', 'Compliance 7д', complianceAvg7d >= 70, complianceAvg7d, '≥70%', 'soft', 12),
-    criterion('decisions_14d', 'Decision log 14д', decisions14d >= 1, decisions14d, '≥1', 'soft', 8),
+    criterion('compliance_7d', 'Compliance 7д', complianceAvg7d >= g.complianceMin, complianceAvg7d, `≥${g.complianceMin}%`, 'soft', 12),
+    criterion('decisions_14d', 'Decision log 14д', decisions14d >= g.decisions14Min, decisions14d, `≥${g.decisions14Min}`, 'soft', 8),
   ];
 }
 
@@ -237,7 +248,6 @@ export function evaluateTransitionGates(ctx: StageGateContext): StageGateEvaluat
   };
 }
 
-/** Count days in history marked qualified at daily evaluation. */
 function countQualifyingDaysFromHistory(history: ReadinessHistoryEntry[]): number {
   return history.filter((e) => e.qualified).length;
 }
@@ -247,6 +257,7 @@ export function evaluateDemotionRisk(ctx: StageGateContext): DemotionEvaluation 
   const history = ctx.readinessHistory;
   const criteria: DemotionEvaluation['criteria'] = [];
   const reasons: string[] = [];
+  const d = T.demotion;
 
   if (stage === 'foundation') {
     return { atRisk: false, targetStage: null, criteria: [], reasons: [] };
@@ -255,49 +266,51 @@ export function evaluateDemotionRisk(ctx: StageGateContext): DemotionEvaluation 
   const last10 = history.slice(-10);
   const last7 = history.slice(-7);
 
-  const frWeakDays = last10.filter((e) => e.foundation < 40 && e.regulation < 38).length;
-  const regWeakDays = last7.filter((e) => e.regulation < 42).length;
-  const mindWeakDays = last7.filter((e) => e.mind < 45).length;
+  const frWeakDays = last10.filter(
+    (e) => e.foundation < d.frFoundationMax && e.regulation < d.frRegulationMax
+  ).length;
+  const regWeakDays = last7.filter((e) => e.regulation < d.regulationWeakMax).length;
+  const mindWeakDays = last7.filter((e) => e.mind < d.mindWeakMax).length;
 
   if (stage === 'regulation' || stage === 'mind' || stage === 'influence') {
     criteria.push({
       id: 'foundation_regulation_collapse',
-      label: 'foundation<40 и regulation<38 (7/10 дн.)',
-      met: frWeakDays >= 7,
+      label: `foundation<${d.frFoundationMax} и regulation<${d.frRegulationMax} (7/10 дн.)`,
+      met: frWeakDays >= d.frWeakDays10,
       current: `${frWeakDays}/10`,
-      target: '≥7/10',
+      target: `≥${d.frWeakDays10}/10`,
     });
   }
 
   if (stage === 'mind' || stage === 'influence') {
     criteria.push({
       id: 'regulation_weak',
-      label: 'regulation<42 (5/7 дн.)',
-      met: regWeakDays >= 5,
+      label: `regulation<${d.regulationWeakMax} (5/7 дн.)`,
+      met: regWeakDays >= d.regulationWeakDays7,
       current: `${regWeakDays}/7`,
-      target: '≥5/7',
+      target: `≥${d.regulationWeakDays7}/7`,
     });
   }
 
   if (stage === 'influence') {
     criteria.push({
       id: 'mind_weak',
-      label: 'mind<45 (5/7 дн.)',
-      met: mindWeakDays >= 5,
+      label: `mind<${d.mindWeakMax} (5/7 дн.)`,
+      met: mindWeakDays >= d.mindWeakDays7,
       current: `${mindWeakDays}/7`,
-      target: '≥5/7',
+      target: `≥${d.mindWeakDays7}/7`,
     });
   }
 
   let targetStage: StageId | null = null;
 
-  if (frWeakDays >= 7) {
+  if (frWeakDays >= d.frWeakDays10) {
     targetStage = 'foundation';
     reasons.push('Проседание физиологической базы и саморегуляции');
-  } else if (stage === 'influence' && mindWeakDays >= 5) {
+  } else if (stage === 'influence' && mindWeakDays >= d.mindWeakDays7) {
     targetStage = 'mind';
     reasons.push('Проседание когнитивного этапа');
-  } else if ((stage === 'mind' || stage === 'influence') && regWeakDays >= 5) {
+  } else if ((stage === 'mind' || stage === 'influence') && regWeakDays >= d.regulationWeakDays7) {
     targetStage = 'regulation';
     reasons.push('Проседание саморегуляции');
   }

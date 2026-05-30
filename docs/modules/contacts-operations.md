@@ -22,4 +22,4 @@ DIRECTOR: `contactBrief`, `preContactSimulation`.
 
 **INTEGRATION → Operator Doctrine** — 5–10 правил; seed при onboarding.
 
-Export snapshot version **9** включает `contacts`, `operations`, `operatorDoctrine`, `triggerLogs`, `studySessions`.
+Текущий export snapshot: **v17** (все таблицы OS). Историческая веха Dexie **v9** добавила `contacts`, `operations`, `operatorDoctrine`, `triggerLogs`, `studySessions` — они входят в v17.

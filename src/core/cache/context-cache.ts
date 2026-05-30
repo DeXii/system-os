@@ -40,6 +40,15 @@ export async function getCachedContextJson(
 }
 
 export function contextCacheKey(
+  taskId: string,
+  lookbackDays: number,
+  workoutKind?: string
+): string {
+  return `${taskId}:${lookbackDays}:${workoutKind ?? 'none'}`;
+}
+
+/** @deprecated Use taskId-based contextCacheKey */
+export function contextCacheKeyLegacy(
   scope: string | undefined,
   lookbackDays: number,
   workoutKind?: string

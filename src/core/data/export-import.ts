@@ -1,6 +1,6 @@
 import { db } from '../db';
 
-export const EXPORT_VERSION = 11;
+export const EXPORT_VERSION = 17;
 
 export const EXPORT_TABLE_KEYS = [
   'operator',
@@ -33,6 +33,12 @@ export const EXPORT_TABLE_KEYS = [
   'setLogs',
   'operatorCalibration',
   'operatorFitnessLevels',
+  'operatorTrainingParams',
+  'operatorRegulationParams',
+  'operatorMindParams',
+  'operatorInfluenceParams',
+  'operatorNutritionParams',
+  'operatorIntegrationParams',
   'workoutTypeStats',
   'cardioSessions',
   'contacts',
@@ -57,6 +63,13 @@ export const EXPORT_TABLE_KEYS = [
 ] as const;
 
 type ExportTableKey = (typeof EXPORT_TABLE_KEYS)[number];
+
+/** Tables excluded from Firebase cloud sync (local debug / ephemeral). */
+export const CLOUD_SYNC_SKIP_TABLES = new Set<ExportTableKey>(['domainEvents']);
+
+export const CLOUD_SYNC_TABLE_KEYS = EXPORT_TABLE_KEYS.filter(
+  (key) => !CLOUD_SYNC_SKIP_TABLES.has(key)
+);
 
 const TABLE_MAP: Record<ExportTableKey, keyof typeof db> = {
   operator: 'operator',
@@ -89,6 +102,12 @@ const TABLE_MAP: Record<ExportTableKey, keyof typeof db> = {
   setLogs: 'setLogs',
   operatorCalibration: 'operatorCalibration',
   operatorFitnessLevels: 'operatorFitnessLevels',
+  operatorTrainingParams: 'operatorTrainingParams',
+  operatorRegulationParams: 'operatorRegulationParams',
+  operatorMindParams: 'operatorMindParams',
+  operatorInfluenceParams: 'operatorInfluenceParams',
+  operatorNutritionParams: 'operatorNutritionParams',
+  operatorIntegrationParams: 'operatorIntegrationParams',
   workoutTypeStats: 'workoutTypeStats',
   cardioSessions: 'cardioSessions',
   contacts: 'contacts',
@@ -166,12 +185,15 @@ export function sanitizeForFirestore<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-export async function exportSnapshotObject(): Promise<Record<string, unknown>> {
+export async function exportSnapshotObject(options?: {
+  forCloud?: boolean;
+}): Promise<Record<string, unknown>> {
+  const keys = options?.forCloud ? CLOUD_SYNC_TABLE_KEYS : EXPORT_TABLE_KEYS;
   const data: Record<string, unknown> = {
     version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
   };
-  for (const key of EXPORT_TABLE_KEYS) {
+  for (const key of keys) {
     data[key] = await getTable(key).toArray();
   }
   return sanitizeForFirestore(data);
@@ -193,6 +215,7 @@ export async function applyMergedSnapshot(snapshot: Record<string, unknown>): Pr
   try {
     await db.transaction('rw', db.tables, async () => {
       for (const [key, tableName] of Object.entries(TABLE_MAP)) {
+        if (CLOUD_SYNC_SKIP_TABLES.has(key as ExportTableKey)) continue;
         const rows = snapshot[key];
         if (!Array.isArray(rows) || !rows.length) continue;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

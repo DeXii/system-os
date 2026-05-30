@@ -23,7 +23,10 @@ import {
   getWorkoutTypeStat,
 } from '@/core/engines/workout-stats';
 import { runDirectorTask } from '@/core/ai/director-service';
-import type { TaskId } from '@/core/ai/director-tasks';
+import {
+  isFoundationCardioPlanTask,
+  type TaskId,
+} from '@/core/ai/director-tasks';
 import { TerminalBlock } from '@/ui/components/TerminalBlock';
 import { WorkoutPlanEditor } from './WorkoutPlanEditor';
 
@@ -42,6 +45,25 @@ interface LastRequest {
 
 function responseLooksLikeJsonActions(text: string): boolean {
   return /```json/i.test(text) || /"set_workout_plan"/i.test(text);
+}
+
+function formatPlanFailureHint(
+  taskId: TaskId,
+  meta: { droppedCount: number; droppedReasons: string[]; rawActionCount: number },
+  actionsLen: number,
+  jsonHint: string
+): string {
+  const isCardio = isFoundationCardioPlanTask(taskId);
+  const expected = isCardio ? 'set_cardio_session_plan' : 'set_workout_plan';
+  const dropDetail =
+    meta.droppedReasons.length > 0
+      ? `Причина: ${meta.droppedReasons[0]}. `
+      : meta.droppedCount > 0
+        ? `Отброшено действий: ${meta.droppedCount} (см. KERNEL). `
+        : meta.rawActionCount > 0 && actionsLen === 0
+          ? `Все ${meta.rawActionCount} действий отфильтрованы. `
+          : '';
+  return `${dropDetail}${jsonHint}DIRECTOR не вернул ${expected} — используйте «Простой план без ИИ».`;
 }
 
 export function WorkoutHubPanel({ onPlanAccepted, onCardioReady, onRefresh }: Props) {
@@ -118,12 +140,6 @@ export function WorkoutHubPanel({ onPlanAccepted, onCardioReady, onRefresh }: Pr
       }
 
       setLastDirectorText(res.insight.text);
-      const metaHint =
-        res.meta.droppedCount > 0
-          ? `Отброшено действий: ${res.meta.droppedCount} (см. KERNEL). `
-          : res.meta.rawActionCount > 0 && res.insight.actions.length === 0
-            ? `Все ${res.meta.rawActionCount} действий отфильтрованы. `
-            : '';
 
       const workoutAction = res.insight.actions.find((a) => a.type === 'set_workout_plan');
       const cardioAction = res.insight.actions.find((a) => a.type === 'set_cardio_session_plan');
@@ -166,11 +182,9 @@ export function WorkoutHubPanel({ onPlanAccepted, onCardioReady, onRefresh }: Pr
       }
 
       const jsonHint = responseLooksLikeJsonActions(res.insight.text)
-        ? 'План в тексте, но actions не прошли валидацию — см. KERNEL / PROMPT. '
+        ? 'План в тексте, но actions не прошли валидацию. '
         : '';
-      setActionHint(
-        `${metaHint}${jsonHint}DIRECTOR не вернул set_workout_plan — используйте «Простой план без ИИ».`
-      );
+      setActionHint(formatPlanFailureHint(taskId, res.meta, res.insight.actions.length, jsonHint));
       setPhase('idle');
     } catch (e) {
       setLastDirectorText(e instanceof Error ? e.message : 'Ошибка DIRECTOR');

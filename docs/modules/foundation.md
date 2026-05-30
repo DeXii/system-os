@@ -6,32 +6,42 @@
 
 - **Уровень оператора** — HIFT / GPP / зарядка / растяжка (старт «Средний», авто + ручная правка) → `operatorFitnessLevels`
 - **Калибровка** — макс. подтягивания, брусья, планка → `operatorCalibration`
-- **Bar Fitness Test** — вместо полного ACFT → `bftEvents`
-- **Тренировки (Hub)** — кнопки HIFT, GPP (push/pull/кор/ноги), зарядка, растяжка, кардио; счётчики и дата последней сессии
+- **Bar Fitness Test (BFT)** — вместо полного ACFT → `bftEvents` (legacy `acftEvents` только в старых export)
+- **Тренировки (Workout Hub)** — `WorkoutHubPanel`: HIFT, GPP (push/pull/кор/ноги), зарядка, растяжка, кардио; счётчики и дата последней сессии
 - **Превью плана** — правка подходов/повторов/секунд → Принять → LIVE
 - **LIVE** — HIFT (круг ×3, отдых 2 мин), GPP/утро (подходы с отдыхом), кардио (время, км, пульс)
 - **Recovery Ops** — сон, питание, гидратация → `dailyLogs`
-- **DIRECTOR** — Body Coach + свободный запрос (планы тренировок — из Hub)
+- **FoundationOpsSummary** — сводка 7d + `buildFoundationDirective()`
+- **DIRECTOR** — Body Coach + свободный запрос (планы — из Hub)
 
 ## Каталоги упражнений
 
 Отдельные базы (~30+ на тип): `src/content/exercises/` — HIFT, GPP push/pull/core/legs, warmup, stretch. Уровни: Начинающий … Ayanakoji.
 
+## Adaptive layer
+
+| Файл | Роль |
+|------|------|
+| `foundation-metrics.ts` | Ops summary, `buildFoundationDirective()` |
+| `training-params.ts` | `operatorTrainingParams` — дозы, deload |
+| `foundation-load.ts` | Нагрузка 7d / recovery signal |
+| `workout-stats.ts` | GPP rotation, type stats |
+
 ## DIRECTOR и Groq
 
-- Настройка Groq в **ARCHIVE** (API Key + Proxy URL).
+- Настройка Groq в **ARCHIVE** (Proxy URL в `.env`).
 - Задачи: `planHift`, `planGpp`, `planWarmup`, `planStretch`, `planCardioIntense`, `planCardioEasy`.
-- Контекст 7 дней: `setLogsByKind`, `workoutTypeStats`, `fitnessLevels`, `gppRotationNext`.
-- Actions: `set_workout_plan` (kind, structure, rounds…), `set_cardio_session_plan`.
+- Context: manifest slices + `allowedExerciseIds`; post-parse `exercise-id-remap`.
+- Actions: `set_workout_plan`, `set_cardio_session_plan`.
 - Fallback: «Простой план без ИИ» — локальные `build*PlanLocal`.
 
-## Firebase
+## Export / cloud
 
-Новые таблицы в snapshot (v8): `operatorFitnessLevels`, `workoutTypeStats`, `cardioSessions` — вместе с `setLogs`, `workoutPlans`.
+Таблицы foundation в snapshot **v17**: `operatorFitnessLevels`, `workoutTypeStats`, `cardioSessions`, `setLogs`, `workoutPlans`, `operatorTrainingParams`, `bftEvents`, …
 
 ## GPP ротация
 
-Рекомендуемый тип подсвечивается жёлтым: push → pull → core → legs по последней выполненной GPP-сессии.
+Рекомендуемый тип подсвечивается: push → pull → core → legs по последней GPP-сессии (`getRecommendedGppSubtype`).
 
 ## Связь с COMMAND
 
@@ -41,4 +51,4 @@
 
 - Успех ≥80% за 3 сессии категории → уровень +1; <50% → −1 (с учётом manual override).
 - Подходы: макс. 4; повторы/секунды по логам 7–14 дней.
-- readiness.foundation < 45 → deload в legacy planner.
+- readiness.foundation < 45 → deload в planner / training-params.

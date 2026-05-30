@@ -8,84 +8,113 @@
 |--------|----------|-----|
 | Порядок дня | `week-schedule` + `dayOverrides` | COMMAND — TODAY QUEUE |
 | Миссии / протокол | `missions`, `protocolItems` | COMMAND, график (`refId`) |
-| Тренировка | `workoutPlans`, `setLogs` | FOUNDATION LIVE |
-| HRV, дыхание, mindfulness, stress/PST | `hrvEntries`, `breathingSessions`, `mindfulnessSessions`, `stressLogs`, `pstEntries` | REGULATION |
-| Chess/Go, SWOT, рефлексия | `chessGoSessions`, `reflections`, `scenarios`, `decisionLogs` | MIND |
+| Тренировка | `workoutPlans`, `setLogs`, `cardioSessions` | FOUNDATION LIVE / Hub |
+| Recovery ops | `dailyLogs` (sleep, hydration, …) | FOUNDATION, NUTRITION |
+| Питание | `mealEntries`, `nutritionDays`, `nutritionPlanState`, `shoppingLists` | NUTRITION |
+| HRV, дыхание, mindfulness, stress/PST, triggers | `hrvEntries`, `breathingSessions`, … | REGULATION |
+| Chess/Go, SWOT, рефлексия, study | `chessGoSessions`, `reflections`, `scenarios`, `decisionLogs`, `studySessions` | MIND |
 | MI, Nudge, Protocol, Bias | `influenceEntries` | INFLUENCE |
-| Библиотека (4 уровня) | `libraryBooks` | LIBRARY + виджет в каждом этапе |
+| Контакты / операции | `contacts`, `operations` | INFLUENCE |
+| Библиотека (4 уровня) | `libraryBooks` | LIBRARY + `StageBooksWidget` |
 | Readiness | `readiness.ts` | TopBar, все модули |
 | PDP, synergy, audit | `pdp`, `aiInsights`, `stageProgress` | INTEGRATION |
+| Operator params | `operator*Params` tables | engines (adaptive layer) |
 
 ## taskKey
 
-Стабильный ID задачи на всю систему:
+Стабильный ID задачи на всю систему (полный список: [`src/content/task-keys.ts`](../src/content/task-keys.ts)):
 
-- `foundation.workout` — слот тренировки + план + LIVE
-- `regulation.hrv` — HRV + слот в графике
-- `regulation.breathing.resonant` / `regulation.breathing.wimhof` — LIVE дыхание
-- `regulation.breathing` — legacy: любой режим дыхания за день
-- `regulation.stress` / `regulation.pst` — журнал стресса и PST
-- `mind.chess`, `mind.reflect.short`, `mind.scenario`, `mind.decision_log`
-- `influence.protocol`, `influence.mi`, `influence.nudge`, `influence.observation`, `influence.bias`
-- `os.reading.weekly` — еженедельная миссия чтения
-- `integration.weekly_audit` — воскресный системный аудит
-- `integration.pdp_review` — сохранение / разбор PDP
-- `command.debrief` — вечерний debrief
+**Foundation:** `foundation.workout`, `foundation.gpp`, `foundation.recovery`, `foundation.bft`, `foundation.cardio`
+
+**Nutrition:** `nutrition.log`, `nutrition.plan`, `nutrition.review`
+
+**Regulation:** `regulation.hrv`, `regulation.breathing.resonant`, `regulation.breathing.wimhof`, `regulation.breathing` (legacy), `regulation.mindfulness`, `regulation.stress`, `regulation.pst`, `regulation.trigger_log`
+
+**Mind:** `mind.chess`, `mind.reflect.short`, `mind.reflect.extended`, `mind.reflect` (legacy), `mind.scenario`, `mind.decision_log`, `mind.decision.followup`, `mind.study`
+
+**Influence:** `influence.protocol`, `influence.mi`, `influence.nudge`, `influence.bias`, `influence.observation`, `influence.contact_prep`, `influence.operation_review`
+
+**Global:** `os.reading.weekly`, `command.briefing`, `command.debrief`, `command.doctrine_review`, `integration.weekly_audit`, `integration.pdp_review`
 
 При merge этапов, переносе DIRECTOR и «выполнено» — искать по `taskKey`.
 
 ## os-kernel
 
-Единая точка согласованности:
+Единая точка согласованности ([`src/core/kernel/`](../src/core/kernel/), [`os-kernel.ts`](../src/core/engines/os-kernel.ts)):
 
-- `ensureDayBootstrapped` — протокол + миссии + график
-- `completeScheduleSlot` / `completeByTaskKey` — отметка + compliance
-- `applyDirectorActions` — move_slot, add_mission, …
-- `afterWorkoutComplete` — setLogs → слот done → readiness
-- `afterHrvComplete` / `afterBreathingComplete` / `afterMindfulnessComplete` / `afterStressLogComplete` — REGULATION
-- `afterChessGoComplete` / `afterReflectionComplete` / `afterScenarioComplete` / `afterDecisionLogComplete` — MIND
-- `afterMiEntryComplete` / `afterNudgeEntryComplete` / `afterProtocolComplete` / `afterBiasEntryComplete` / `afterObservationComplete` — INFLUENCE
-- `afterBookMarkedRead` — LIBRARY → `os.reading.weekly`
-- `afterPdpSave` / `afterWeeklyAuditComplete` — INTEGRATION
+| Команда / hook | Назначение |
+|----------------|------------|
+| `ensureDayBootstrapped` | Протокол + миссии + график |
+| `completeScheduleSlot` / `completeByTaskKey` | Отметка + compliance |
+| `applyDirectorActions` | Action Cards |
+| `afterFactWrite` | Domain event + cache invalidation ([`pipeline.ts`](../src/core/kernel/pipeline.ts)) |
+
+**Foundation:** `afterWorkoutComplete`, `afterCardioComplete`, `afterRecoveryOpsSaved`
+
+**Nutrition:** `afterMealLogged`, `afterNutritionPlanUpdated`, `afterShoppingListGenerated`, `afterNutritionGoalSet`
+
+**Regulation:** `afterHrvComplete`, `afterBreathingComplete`, `afterMindfulnessComplete`, `afterStressLogComplete`, `afterTriggerLogComplete`
+
+**Mind:** `afterChessGoComplete`, `afterReflectionComplete`, `afterScenarioComplete`, `afterDecisionLogComplete`, `afterStudySessionComplete`
+
+**Influence:** `afterMiEntryComplete`, `afterNudgeEntryComplete`, `afterProtocolComplete`, `afterBiasEntryComplete`, `afterObservationComplete`, `afterContactSave`, `afterOperationSave`
+
+**Library / Integration:** `afterBookMarkedRead`, `afterPdpSave`, `afterWeeklyAuditComplete`
+
+## OpsSummary pattern
+
+Единый UX/данные для этаповых модулей:
+
+```text
+get*OpsSummary()     → UI hints + COMMAND AlertsPanel
+build*Directive()    → [РАСЧЁТ] · [ДЕЙСТВИЕ] · [ОТКАЗ] в OpsSummary + DIRECTOR context
+subscribeOsRefresh   → пересчёт после kernel automations
+```
+
+Примеры: `RegulationOpsSummary` + `buildRegulationDirective`, `MindOpsSummary` + `buildMindDirective`, `NutritionOpsSummary` + `buildNutritionDirective`.
 
 ## MIND slots
 
-При unlocked `mind`: chess/go, короткий PMR/OODA вечером. Сценарии — intensive extras. Decision log — по событию.
+При unlocked `mind`: chess/go, короткий PMR/OODA вечером. Сценарии — intensive extras. Decision log — по событию. `mind.decision.followup` — авто-миссия +7д после decision log. `mind.study` — учёба вне chess.
 
 ## LIBRARY
 
-Отдельная вкладка Dock. Seed из `os-books-catalog.ts`. В FOUNDATION/REGULATION/MIND/INFLUENCE — `StageBooksWidget` только своего уровня (1–4).
+Отдельная вкладка Dock. Seed из `os-books-catalog.ts`. В FOUNDATION/REGULATION/MIND/INFLUENCE — `StageBooksWidget` только своего уровня (1–4). См. [modules/library.md](modules/library.md).
 
 ## REGULATION slots
 
-При `syncFromMissionsAndProtocol` и разблокированном этапе `regulation` добавляются слоты: HRV (утро), дыхание (резонанс или Wim Hof по дню недели), mindfulness. Stress — по событию, не ежедневный слот.
+При `syncFromMissionsAndProtocol` и разблокированном этапе `regulation`: HRV (утро), дыхание (резонанс или Wim Hof по дню недели), mindfulness. Stress / trigger log — по событию.
 
 ## INFLUENCE slots
 
-При unlocked `influence`: MI (OARS), Nudge. Protocol и Bias — по событию/перед контактом. Export/import version **6**.
+При unlocked `influence`: MI (OARS), Nudge. Protocol и Bias — по событию/перед контактом. Legacy `influence.ethics` → `influence.protocol`; `ethicsChecked` не влияет на readiness.
 
-## Dexie v6
+## NUTRITION
 
-Расширенный `InfluenceEntry`; legacy `ethicsChecked` не влияет на readiness.
-
-## Dexie v12 / Export v9
-
-Таблицы: `contacts`, `operations`, `operatorDoctrine`, `triggerLogs`, `studySessions`.
-
-Kernel: `afterContactSave`, `afterOperationSave`, `afterTriggerLogComplete`, `afterStudySessionComplete`; `afterDecisionLogComplete` ставит `followUpDueDate` (+7d).
-
-Авто-миссии: `mind.decision.followup`, `mind.study` (при простое).
+Dock tab `nutrition` — не пятый этап пирамиды. Слоты и миссии: log / plan / review. Recovery ops из FOUNDATION могут завершать `foundation.recovery` через `afterRecoveryOpsSaved`.
 
 ## INTEGRATION
 
-- Пирамида L1–L3, synergy bottleneck, PDP, weekly audit
+- Пирамида 4 этапа OS, synergy bottleneck, PDP, weekly audit
 - Stage progression UI в INTEGRATION; COMMAND — hint
-- Export/import version **7** (`PdpMilestone` с id)
 - Воскресный слот `integration.weekly_audit` в COMMAND queue
 
 Модули **не должны** отдельно обновлять миссии и график.
 
-## События
+## Export / import
+
+Текущая версия snapshot: **17** ([`export-import.ts`](../src/core/data/export-import.ts)). Импорт перезаписывает IndexedDB. Ключ Groq не входит в экспорт.
+
+Исторические вехи Dexie (v6 influence, v9 contacts, v12 study/trigger) — см. миграции в `src/core/db/`; для backup всегда указывайте **v17**.
+
+## Domain events retention
+
+- Таблица `domainEvents` — локальный журнал kernel/domain (не в cloud sync)
+- Авто-prune записей старше **30 дней** (`DOMAIN_EVENTS_RETENTION_DAYS`)
+- Debounced prune после emit (`schedulePruneDomainEvents`)
+- Ручной prune: ARCHIVE → `DomainEventsPanel`
+
+## События UI
 
 `emitKernel(module, message, level, taskKey?)` → `subscribeOsRefresh` → `useOsState.refresh`.
 

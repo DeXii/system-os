@@ -17,6 +17,7 @@ import { HiftLiveMode } from './components/HiftLiveMode';
 import { StraightSetsLiveMode } from './components/StraightSetsLiveMode';
 import { FoundationDirectorPanel } from './components/FoundationDirectorPanel';
 import { ManualWorkoutLogPanel } from './components/ManualWorkoutLogPanel';
+import { FoundationOpsSummary } from './components/FoundationOpsSummary';
 import { WorkoutHubPanel } from './components/WorkoutHubPanel';
 import { StageBooksWidget } from '@/modules/library/components/StageBooksWidget';
 import { ModuleShell } from '@/ui/shell/ModuleShell';
@@ -110,6 +111,8 @@ export function FoundationModule({ moduleStatus, onRefresh, onOpenLibrary, onOpe
       <StageBooksWidget level={1} onOpenLibrary={onOpenLibrary} />
 
       <FitnessLevelPanel />
+
+      <FoundationOpsSummary onRefresh={onRefresh} />
 
       <CalibrationPanel
         onSaved={() => {

@@ -68,6 +68,16 @@ export async function afterWorkoutComplete(
   const { recomputeFitnessLevels } = await import('../../engines/progression-engine');
   await recomputeFitnessLevels();
 
+  const sessionLogs = await db.setLogs.where('workoutPlanId').equals(plan.id).toArray();
+  if (sessionLogs.length > 0) {
+    const { updateTrainingParamsFromSession } = await import('../../engines/training-params');
+    await updateTrainingParamsFromSession(plan.id, sessionLogs);
+  }
+
+  const { buildFoundationDirective } = await import('../../engines/foundation-metrics');
+  const directive = await buildFoundationDirective();
+  const kernelMsg = [directive.actionLine, directive.denyLine].filter(Boolean).join(' ');
+
   await afterFactWrite({ type: 'WORKOUT_LOGGED', date: today, planId: plan.id, kind });
   await completeByTaskKey(TASK_KEYS.foundationWorkout, today, 'foundation');
   if (isBarProtocolKind(kind)) {
@@ -76,7 +86,7 @@ export async function afterWorkoutComplete(
   await refreshDayReportCompliance(today);
   await emitKernel(
     'foundation',
-    `Тренировка завершена (${kind})`,
+    kernelMsg || `Тренировка завершена (${kind})`,
     'success',
     TASK_KEYS.foundationWorkout
   );

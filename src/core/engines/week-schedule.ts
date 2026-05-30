@@ -251,7 +251,7 @@ async function syncFromMissionsAndProtocolInner(date: string): Promise<ScheduleS
 
   const profile = await db.operator.toCollection().first();
   if (profile) {
-    for (const slot of buildRegulationSlots(profile, date)) {
+    for (const slot of await buildRegulationSlots(profile, date)) {
       const key = slot.taskKey ?? slot.id;
       if (!byKey.has(key)) byKey.set(key, slot);
     }
@@ -343,12 +343,15 @@ export async function findSlotByTaskKey(
   return slots.find((s) => s.taskKey === taskKey);
 }
 
-export function buildRegulationSlots(profile: OperatorProfile, date: string): ScheduleSlot[] {
+export async function buildRegulationSlots(
+  profile: OperatorProfile,
+  date: string
+): Promise<ScheduleSlot[]> {
   const unlocked = getUnlockedStages(profile);
   if (!unlocked.includes('regulation')) return [];
 
-  const wd = weekdayIndexForDate(date);
-  const useWimHof = wd === 2 || wd === 5;
+  const { pickBreathProtocolForDay } = await import('./regulation-metrics');
+  const useWimHof = (await pickBreathProtocolForDay(profile, date)) === 'wimhof';
   const breathKey = useWimHof
     ? TASK_KEYS.regulationBreathingWimhof
     : TASK_KEYS.regulationBreathingResonant;

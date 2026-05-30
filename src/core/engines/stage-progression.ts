@@ -1,9 +1,9 @@
 import { db, dateKeyDaysAgo, todayKey } from '../db';
-import { computeReadiness } from './readiness';
 import { confirmStageAdvanceKernel, confirmStageDemotionKernel } from './os-kernel';
 import { emitKernel } from '../events/event-bus';
-import { getBreathing7dSummary, getRegulationPractice14d } from './regulation-metrics';
-import { getMindPractice14d, getScenarioCount7d, shouldThrottleCognitiveLoad } from './mind-metrics';
+import { buildStageGateContext } from './integration-context';
+import { computeSynergyGap } from './integration-metrics';
+import { updateIntegrationParamsFromAudit } from './integration-params';
 import {
   appendReadinessHistory,
   buildReadinessHistoryEntry,
@@ -11,6 +11,7 @@ import {
   evaluateTransitionGates,
   isTodayQualifying,
   QUALIFYING_DAYS_REQUIRED,
+  SOFT_SCORE_REQUIRED,
   type StageGateContext,
 } from './stage-transition-rules';
 import {
@@ -41,78 +42,6 @@ export async function getStageProgress(): Promise<StageProgressState> {
   return initial;
 }
 
-async function buildStageGateContext(profile: OperatorProfile): Promise<StageGateContext> {
-  const readiness = await computeReadiness();
-  const since7 = dateKeyDaysAgo(6);
-  const since14 = dateKeyDaysAgo(13);
-
-  const [weekReports, scenarios14d, decisions14d, trainingSessions7d, bft, acft, progress] =
-    await Promise.all([
-      db.dayReports.where('date').aboveOrEqual(since7).toArray(),
-      db.scenarios.where('date').aboveOrEqual(since14).count(),
-      db.decisionLogs.where('date').aboveOrEqual(since14).count(),
-      db.trainingSessions.where('date').aboveOrEqual(since7).count(),
-      db.bftEvents.orderBy('date').reverse().first(),
-      db.acftEvents.orderBy('date').reverse().first(),
-      getStageProgress(),
-    ]);
-
-  const complianceAvg7d =
-    weekReports.length === 0
-      ? 0
-      : Math.round(weekReports.reduce((a, r) => a + r.compliance, 0) / weekReports.length);
-  const debriefRate7d =
-    weekReports.length === 0
-      ? 0
-      : Math.round((weekReports.filter((r) => r.debriefDone).length / weekReports.length) * 100);
-  const briefingRate7d =
-    weekReports.length === 0
-      ? 0
-      : Math.round((weekReports.filter((r) => r.briefingDone).length / weekReports.length) * 100);
-
-  const test = bft ?? acft;
-  let bftDaysSince: number | null = null;
-  if (test) {
-    bftDaysSince = Math.floor((Date.now() - new Date(test.date).getTime()) / 86400000);
-  }
-
-  const since7hrv = dateKeyDaysAgo(6);
-  const hrvDays7d = await db.hrvEntries.where('date').aboveOrEqual(since7hrv).count();
-  const breath7 = await getBreathing7dSummary();
-  const since14influence = dateKeyDaysAgo(13);
-  const influenceEntries = await db.influenceEntries
-    .where('date')
-    .aboveOrEqual(since14influence)
-    .toArray();
-  const miCount14d = influenceEntries.filter((e) => e.type === 'mi').length;
-
-  const [regulationStreak, mindStreak] = await Promise.all([
-    getRegulationPractice14d(),
-    getMindPractice14d(),
-  ]);
-
-  const scenarios7d = await getScenarioCount7d();
-
-  return {
-    profile,
-    readiness,
-    complianceAvg7d,
-    debriefRate7d,
-    briefingRate7d,
-    regulationStreak,
-    resonantBreath7d: breath7.resonant,
-    hrvDays7d,
-    mindStreak,
-    scenarios14d: Math.max(scenarios14d, scenarios7d),
-    decisions14d,
-    cognitiveThrottle: shouldThrottleCognitiveLoad(readiness),
-    bftDaysSince,
-    trainingSessions7d,
-    miCount14d,
-    readinessHistory: progress.readinessHistory ?? [],
-  };
-}
-
 export async function evaluateStageProgression(
   profile: OperatorProfile
 ): Promise<StageProgressState> {
@@ -138,7 +67,7 @@ export async function evaluateStageProgression(
 
   const current = profile.currentStage;
   const stageStreaks = { ...progress.stageStreaks };
-  if (gateEval.blockersMet && gateEval.softScore >= 80) {
+  if (gateEval.blockersMet && gateEval.softScore >= SOFT_SCORE_REQUIRED) {
     stageStreaks[current] = (stageStreaks[current] ?? 0) + 1;
   } else {
     stageStreaks[current] = 0;
@@ -193,6 +122,7 @@ export async function evaluateStageProgression(
     readinessHistory: history,
   };
   await db.stageProgress.put(updated);
+  await updateIntegrationParamsFromAudit(computeSynergyGap(ctx.readiness));
   return updated;
 }
 
@@ -294,7 +224,7 @@ export function getGateProgress(
     evaluation,
     qualifyingDays: progress.qualifyingDays ?? evaluation?.qualifyingDays ?? 0,
     qualifyingRequired: QUALIFYING_DAYS_REQUIRED,
-    softScoreRequired: 80,
+    softScoreRequired: SOFT_SCORE_REQUIRED,
   };
 }
 

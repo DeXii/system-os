@@ -295,7 +295,7 @@ export async function pushToCloud(): Promise<{ ok: boolean; error?: string }> {
   pushPending = false;
   setStatus('syncing');
   try {
-    const payload = await exportSnapshotObject();
+    const payload = await exportSnapshotObject({ forCloud: true });
     if (!hasSnapshotData(payload)) {
       setStatus('synced');
       return { ok: false, error: MSG_LOCAL_EMPTY };

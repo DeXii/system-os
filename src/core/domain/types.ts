@@ -171,6 +171,84 @@ export interface OperatorFitnessLevels {
   lastUpdated: string;
 }
 
+/** EMA-adapted training load parameters (foundation self-learning). */
+export interface OperatorTrainingParams {
+  id: 'training-params';
+  strengthPull: number;
+  strengthPush: number;
+  fatigue: number;
+  recoveryPrior: number;
+  chronotypePeakHour?: number;
+  lastUpdated: string;
+}
+
+/** EMA-adapted autonomic regulation parameters (regulation self-learning). */
+export interface OperatorRegulationParams {
+  id: 'regulation-params';
+  hrvBaselineEma: number;
+  hrvSigmaEma: number;
+  resonantDoseTargetMin: number;
+  wimHofTolerance: number;
+  pstEfficacy: number;
+  lastUpdated: string;
+}
+
+/** EMA-adapted cognitive practice parameters (mind self-learning). */
+export interface OperatorMindParams {
+  id: 'mind-params';
+  chessDoseTargetMin: number;
+  reflectEfficacy: number;
+  decisionCalibration: number;
+  cognitivePeakHour?: number;
+  swotTolerance: number;
+  ratingEma?: number;
+  ratingSigmaEma?: number;
+  /** Beta-Binomial prior successes for decision calibration. */
+  calibrationAlpha?: number;
+  /** Beta-Binomial prior failures for decision calibration. */
+  calibrationBeta?: number;
+  lastUpdated: string;
+}
+
+/** EMA-adapted nutrition adherence and macro baselines. */
+export interface OperatorNutritionParams {
+  id: 'nutrition-params';
+  proteinBaselineEma: number;
+  calorieBaselineEma: number;
+  proteinSigmaEma: number;
+  adherenceEma: number;
+  loggingDoseTargetMeals: number;
+  lastUpdated: string;
+}
+
+/** EMA-adapted influence / communication practice parameters. */
+export interface OperatorInfluenceParams {
+  id: 'influence-params';
+  /** Rolling OARS field completeness (0–1). */
+  miDepthEma: number;
+  /** Rolling MI/debrief outcome quality (0–1). */
+  miEfficacyEma: number;
+  /** Target MI entries per week (adaptive dose). */
+  miDoseTargetWeekly: number;
+  /** Rolling nudge outcome signal (0–1). */
+  nudgeEfficacyEma: number;
+  /** Beta prior successes for operation outcome calibration. */
+  operationCalibrationAlpha: number;
+  /** Beta prior failures for operation outcome calibration. */
+  operationCalibrationBeta: number;
+  lastUpdated: string;
+}
+
+/** EMA-adapted integration / synergy / COMMAND gate targets. */
+export interface OperatorIntegrationParams {
+  id: 'integration-params';
+  complianceTargetEma: number;
+  debriefTargetEma: number;
+  synergyGapTolerance: number;
+  auditIntervalDaysEma: number;
+  lastUpdated: string;
+}
+
 export interface WorkoutTypeStat {
   kind: WorkoutKind;
   totalCount: number;
@@ -231,7 +309,10 @@ export interface PstEntry {
 }
 
 export type ChessPlatform = 'lichess' | 'chesscom' | 'ogs' | 'otb' | 'other';
+export type ChessDifficulty = 'blitz' | 'rapid' | 'classical';
 export type ReflectionMode = 'pmr_short' | 'pmr_extended' | 'ooda';
+export type FocusRating = 1 | 2 | 3 | 4 | 5;
+export type DecisionOutcomeScore = -2 | -1 | 0 | 1 | 2;
 export type BookLevel = 1 | 2 | 3 | 4;
 export type BookReadStatus = 'unread' | 'reading' | 'read';
 export type BookSource = 'catalog' | 'user';
@@ -244,6 +325,10 @@ export interface ChessGoSession {
   rating?: number;
   ratingAfter?: number;
   platform?: ChessPlatform;
+  difficulty?: ChessDifficulty;
+  focusBefore?: FocusRating;
+  focusAfter?: FocusRating;
+  interruptions?: number;
   notes?: string;
 }
 
@@ -258,6 +343,8 @@ export interface ReflectionEntry {
   orient?: string;
   decide?: string;
   act?: string;
+  durationMin?: number;
+  cognitiveLoad?: FocusRating;
   linkedScenarioId?: string;
   linkedDecisionId?: string;
 }
@@ -289,6 +376,8 @@ export interface DecisionLogEntry {
   choice: string;
   expectedOutcome: string;
   actualOutcome?: string;
+  confidence?: FocusRating;
+  outcomeScore?: DecisionOutcomeScore;
   linkedScenarioId?: string;
   followUpDueDate?: string;
   followUpDone?: boolean;
@@ -594,6 +683,8 @@ export interface StageProgressState {
   qualifyingDays?: number;
   lastGateSnapshot?: StageGateEvaluation;
   readinessHistory?: ReadinessHistoryEntry[];
+  /** Cached last weekly audit timestamp (ISO) to avoid full aiInsights scan. */
+  lastWeeklyAuditAt?: string;
 }
 
 export interface SystemEvent {

@@ -14,7 +14,7 @@
 | Nudge Journal | `influence.nudge` | context, nudge type, outcome |
 | Bias Log | `influence.bias` | когнитивное искажение + коррекция |
 | Observation / Debrief | `influence.observation` | Theory of Mind, post-contact debrief |
-| Influence Ops | — | 7d метрики + hints из COMMAND |
+| InfluenceOpsSummary | — | 7d метрики + `buildInfluenceDirective()` |
 | DIRECTOR | `influenceCoach`, `contactBrief`, `operationReview` | тактика класса |
 
 ## taskKey (stage)
@@ -22,13 +22,28 @@
 - anchor: `influence.mi`
 - protocol: `influence.mi`, `influence.nudge`
 - extras: `influence.open_questions`, `influence.bias`
+- contacts/ops: `influence.contact_prep`, `influence.operation_review`
 
 Legacy `influence.ethics` заменён на `influence.protocol`.
 
 ## os-kernel
 
 - `afterMiEntryComplete`, `afterNudgeEntryComplete`, `afterBiasEntryComplete`, `afterProtocolComplete`, `afterObservationComplete`
+- `afterContactSave`, `afterOperationSave`
 - `completeInfluencePractice` — слот + kernel + compliance
+
+## Adaptive layer
+
+| Файл | Роль |
+|------|------|
+| `influence-metrics.ts` | Ops 7d, directive input |
+| `influence-params.ts` | `operatorInfluenceParams` |
+| `influence-thresholds.ts` | throttle / quality gates |
+| `influence-quality.ts` | качество записей |
+| `influence-readiness.ts` | вклад в ось influence |
+| `contact-metrics.ts` | метрики по досье |
+
+`buildInfluenceDirective()` — `[РАСЧЁТ] · [ДЕЙСТВИЕ] · [ОТКАЗ]` в OpsSummary и DIRECTOR context.
 
 ## Readiness (influence v2, 14d)
 
@@ -39,10 +54,10 @@ Legacy `influence.ethics` заменён на `influence.protocol`.
 
 Поле `ethicsChecked` в старых записях игнорируется.
 
-## Dexie v6
+## Export v17
 
-Расширенный `InfluenceEntry` с OARS/nudge/bias/protocol полями. Migration: `context` → `situation` для legacy MI.
+`influenceEntries`, `contacts`, `operations`, `operatorInfluenceParams`, `operatorDoctrine`.
 
 ## DIRECTOR
 
-`influenceCoach` использует `influence.ops7d`, `influence.recentEntries`, `influence.throttle` из context-builder.
+`influenceCoach` — slices `influence.*`, throttle, recent entries. `contactBrief` / `operationReview` — scoped context для досье и кампаний.

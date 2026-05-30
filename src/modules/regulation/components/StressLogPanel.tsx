@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { db, todayKey } from '@/core/db';
 import { afterStressLogComplete } from '@/core/engines/os-kernel';
+import { RegulationValidationError } from '@/core/kernel/automations/after-regulation';
 import { PST_TEMPLATES } from '@/content/regulation-protocols';
 import type { StressLogEntry } from '@/core/domain/types';
 import { GlossaryZone } from '@/ui/glossary';
@@ -11,6 +12,7 @@ interface Props {
 
 export function StressLogPanel({ onSaved }: Props) {
   const [logs, setLogs] = useState<StressLogEntry[]>([]);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [form, setForm] = useState({
     trigger: '',
     reaction: '',
@@ -34,44 +36,53 @@ export function StressLogPanel({ onSaved }: Props) {
 
   const save = async () => {
     if (!form.trigger.trim()) return;
-    await afterStressLogComplete(
-      {
-        date: todayKey(),
-        trigger: form.trigger,
-        reaction: form.reaction,
-        technique: form.technique,
-        outcome: form.outcome,
-        arousalBefore: Number(form.arousalBefore),
-        arousalAfter: Number(form.arousalAfter),
-        pstSelfTalk: form.pstSelfTalk || undefined,
-        linkedTechnique: form.linkedTechnique || undefined,
-      },
-      form.savePst && form.pstSelfTalk
-        ? {
-            pstEntry: {
-              date: todayKey(),
-              situation: form.trigger,
-              selfTalk: form.pstSelfTalk,
-              reframing: form.reframing || form.technique,
-              outcome: form.outcome,
-            },
-          }
-        : undefined
-    );
-    setForm({
-      trigger: '',
-      reaction: '',
-      technique: '',
-      outcome: '',
-      arousalBefore: '6',
-      arousalAfter: '4',
-      pstSelfTalk: '',
-      linkedTechnique: '',
-      savePst: false,
-      reframing: '',
-    });
-    load();
-    onSaved();
+    setSaveError(null);
+    try {
+      await afterStressLogComplete(
+        {
+          date: todayKey(),
+          trigger: form.trigger,
+          reaction: form.reaction,
+          technique: form.technique,
+          outcome: form.outcome,
+          arousalBefore: Number(form.arousalBefore),
+          arousalAfter: Number(form.arousalAfter),
+          pstSelfTalk: form.pstSelfTalk || undefined,
+          linkedTechnique: form.linkedTechnique || undefined,
+        },
+        form.savePst && form.pstSelfTalk
+          ? {
+              pstEntry: {
+                date: todayKey(),
+                situation: form.trigger,
+                selfTalk: form.pstSelfTalk,
+                reframing: form.reframing || form.technique,
+                outcome: form.outcome,
+              },
+            }
+          : undefined
+      );
+      setForm({
+        trigger: '',
+        reaction: '',
+        technique: '',
+        outcome: '',
+        arousalBefore: '6',
+        arousalAfter: '4',
+        pstSelfTalk: '',
+        linkedTechnique: '',
+        savePst: false,
+        reframing: '',
+      });
+      load();
+      onSaved();
+    } catch (e) {
+      if (e instanceof RegulationValidationError) {
+        setSaveError(e.errors.join('; '));
+      } else {
+        setSaveError('Не удалось сохранить stress log');
+      }
+    }
   };
 
   return (
@@ -83,6 +94,11 @@ export function StressLogPanel({ onSaved }: Props) {
           при низком HRV.
         </p>
       </GlossaryZone>
+      {saveError && (
+        <div className="alert-banner" style={{ borderColor: 'var(--danger)', marginBottom: 8 }}>
+          {saveError}
+        </div>
+      )}
       <div className="form-row">
         <label className="label">Триггер</label>
         <input

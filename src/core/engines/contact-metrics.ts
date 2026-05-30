@@ -7,24 +7,33 @@ export async function getContactsSummary(): Promise<{
   needingDebrief: ContactProfile[];
 }> {
   const contacts = await db.contacts.toArray();
-  const since = dateKeyDaysAgo(6);
-  const entries = await db.influenceEntries.where('date').aboveOrEqual(since).toArray();
-  const contactIdsWithActivity = new Set(
-    entries.filter((e) => e.contactId).map((e) => e.contactId!)
-  );
-
-  const needingDebrief: ContactProfile[] = [];
+  const since7 = dateKeyDaysAgo(6);
   const since14 = dateKeyDaysAgo(13);
 
+  const entries7 = await db.influenceEntries.where('date').aboveOrEqual(since7).toArray();
+  const entries14 = await db.influenceEntries.where('date').aboveOrEqual(since14).toArray();
+
+  const contactIdsWithActivity = new Set(
+    entries7.filter((e) => e.contactId).map((e) => e.contactId!)
+  );
+
+  const byContact14 = new Map<string, InfluenceEntry[]>();
+  for (const e of entries14) {
+    if (!e.contactId) continue;
+    const list = byContact14.get(e.contactId) ?? [];
+    list.push(e);
+    byContact14.set(e.contactId, list);
+  }
+
+  const needingDebrief: ContactProfile[] = [];
   for (const c of contacts) {
-    const recent = await db.influenceEntries
-      .where('date')
-      .aboveOrEqual(since14)
-      .filter((e) => e.contactId === c.id)
-      .toArray();
-    const hasObservation = recent.some((e) => e.type === 'observation' || e.type === 'debrief');
+    const recent = byContact14.get(c.id) ?? [];
+    if (!recent.length) continue;
+    const hasObservation = recent.some(
+      (e) => e.type === 'observation' || e.type === 'debrief'
+    );
     const hasMi = recent.some((e) => e.type === 'mi');
-    if ((hasMi || recent.length > 0) && !hasObservation && contacts.length > 0) {
+    if ((hasMi || recent.length > 0) && !hasObservation) {
       needingDebrief.push(c);
     }
   }

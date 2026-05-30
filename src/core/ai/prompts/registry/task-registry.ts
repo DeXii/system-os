@@ -126,8 +126,7 @@ export const TASK_REGISTRY: Record<TaskId, DirectorTaskPromptConfig> = {
     constraintIds: ['readiness'],
   },
   nutritionCoach: {
-    templateId: 'analysis',
-    templateParams: { kind: 'weekly' },
+    templateId: 'nutrition',
     outputFormat: 'minimal',
     allowedActions: ['log_note', 'add_mission'],
     constraintIds: ['readiness'],

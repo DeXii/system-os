@@ -16,6 +16,7 @@ import { BootScreen } from '@/shell/BootScreen';
 import { Onboarding } from '@/shell/Onboarding';
 import { ErrorBoundary } from './ErrorBoundary';
 import { resetLocalDatabaseOnly } from '@/core/data/factory-reset';
+import { pruneDomainEvents } from '@/core/events/domain-events-retention';
 import { OsLayout } from './OsLayout';
 
 type Phase = 'boot' | 'onboarding' | 'os';
@@ -51,6 +52,7 @@ function OsApp({ user }: { user: User }) {
       try {
         clearStaleCloudSyncError();
         await db.open();
+        await pruneDomainEvents();
         const pull = await pullFromCloud();
         if (!cancelled && !pull.ok) {
           setSyncNote(`Облако: ${pull.error}. Работа с локальным кэшем.`);

@@ -5,6 +5,7 @@ import { renderCognitiveTemplate } from './cognitive.template';
 import { renderCommunicationTemplate } from './communication.template';
 import { renderLibraryTemplate } from './library.template';
 import { renderPlanningTemplate } from './planning.template';
+import { renderNutritionTemplate } from './nutrition.template';
 import { renderRegulationTemplate } from './regulation.template';
 import { renderTrainingTemplate } from './training.template';
 
@@ -26,6 +27,9 @@ export function renderTaskTemplate(config: DirectorTaskPromptConfig): string {
       break;
     case 'regulation':
       body = renderRegulationTemplate();
+      break;
+    case 'nutrition':
+      body = renderNutritionTemplate();
       break;
     case 'communication':
       body = renderCommunicationTemplate(p as Parameters<typeof renderCommunicationTemplate>[0]);

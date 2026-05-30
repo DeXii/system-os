@@ -3,6 +3,7 @@ import type { ModuleId, SystemEvent } from '../domain/types';
 import type { DomainEventRecord, OsDomainEvent } from '../domain/contracts/events';
 import { domainEventToRecord } from '../domain/contracts/events';
 import { invalidateDerivedCaches } from '../cache/invalidate';
+import { schedulePruneDomainEvents } from './domain-events-retention';
 
 type Listener = (event: SystemEvent) => void;
 type RefreshListener = () => void;
@@ -40,10 +41,18 @@ export async function emitDomainEvent(
   const record = domainEventToRecord(event, id, timestamp, correlationId);
   await db.domainEvents.add(record);
   domainListeners.forEach((fn) => fn(record));
-  if (event.type === 'READINESS_INVALIDATED' || event.type.endsWith('_LOGGED')) {
+  if (event.type.endsWith('_LOGGED')) {
     invalidateDerivedCaches(event.type);
   }
+  schedulePruneDomainEvents();
   return record;
+}
+
+/** Cache invalidation for readiness — not persisted to domainEvents. */
+export function invalidateReadiness(reason: string): void {
+  void reason;
+  invalidateDerivedCaches('readiness_invalidated');
+  emitOsRefresh();
 }
 
 export function emitOsRefresh(): void {

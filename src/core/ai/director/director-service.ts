@@ -13,7 +13,7 @@ import {
 } from '../director-tasks';
 import type { WorkoutContextOptions } from '../context-builder';
 import { todayKey } from '../../db';
-import { buildDirectorContext } from '../context-builder';
+import { buildFullDirectorContextJson } from '../context/assemble-context';
 import { ALL_DIRECTOR_ACTION_TYPES } from '../prompts/registry/task-registry';
 import {
   parseContextSnapshot,
@@ -118,6 +118,7 @@ function maxTokensForTask(taskId: TaskId, lookbackDays: ContextLookbackDays): nu
 export type DirectorRunMeta = {
   rawActionCount: number;
   droppedCount: number;
+  droppedReasons: string[];
 };
 
 export async function runDirectorTask(
@@ -226,7 +227,11 @@ export async function runDirectorTask(
     return {
       ok: true,
       insight,
-      meta: { rawActionCount, droppedCount: dropped.length },
+      meta: {
+        rawActionCount,
+        droppedCount: dropped.length,
+        droppedReasons: dropped.map((d) => `${d.action.type}: ${d.reason}`),
+      },
     };
   } catch (e) {
     const error = e instanceof Error ? e.message : 'Ошибка DIRECTOR';
@@ -240,7 +245,7 @@ export async function applyAiActions(
 ): Promise<{ applied: number; dropped: number }> {
   if (!actions.length) return { applied: 0, dropped: 0 };
 
-  const contextJson = await buildDirectorContext('full', 7);
+  const contextJson = await buildFullDirectorContextJson(7);
   const context = parseContextSnapshot(contextJson);
   const { actions: validated, dropped } = validateAndFilterActions(actions, {
     allowedActions: ALL_DIRECTOR_ACTION_TYPES,

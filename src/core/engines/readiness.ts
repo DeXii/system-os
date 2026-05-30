@@ -3,9 +3,14 @@ import { getOrCreateDayReport, refreshDayReportCompliance } from './command-comp
 import { setSucceeded } from './progression-engine';
 import {
   getBreathing7dSummary,
+  getDailyContextPenalty,
   getHrvTrendScore,
+  getMaskBurdenPenalty,
+  getPstReadinessBonus,
+  getSubjectiveReadinessBonus,
   hadWimHofToday,
 } from './regulation-metrics';
+import { REGULATION_THRESHOLDS as RT } from './regulation-thresholds';
 import type { ReadinessScores } from '../domain/types';
 
 const WEIGHTS = { foundation: 0.4, regulation: 0.25, mind: 0.2, influence: 0.15 };
@@ -38,18 +43,6 @@ async function hasBreathSince(since: string): Promise<boolean> {
 }
 async function hasMindfulSince(since: string): Promise<boolean> {
   return (await db.mindfulnessSessions.where('date').aboveOrEqual(since).count()) > 0;
-}
-async function hasChessSince(since: string): Promise<boolean> {
-  return (await db.chessGoSessions.where('date').aboveOrEqual(since).count()) > 0;
-}
-async function hasReflectSince(since: string): Promise<boolean> {
-  return (await db.reflections.where('date').aboveOrEqual(since).count()) > 0;
-}
-async function hasScenarioSince(since: string): Promise<boolean> {
-  return (await db.scenarios.where('date').aboveOrEqual(since).count()) > 0;
-}
-async function hasInfluenceSince(since: string): Promise<boolean> {
-  return (await db.influenceEntries.where('date').aboveOrEqual(since).count()) > 0;
 }
 
 async function isColdStart(checks: (() => Promise<boolean>)[]): Promise<boolean> {
@@ -129,14 +122,33 @@ async function regulationScore(): Promise<number> {
   const mindfulScore = Math.min(20, (mindful / 3) * 20);
   const stressScore = Math.min(10, stressLogs >= 1 ? 10 : 0);
 
-  let total = hrvScore + resonantScore + wimScore + mindfulScore + stressScore + trendBonus;
-  if (breathSummary.wimHof >= 3 && breathSummary.resonant < 2) {
-    total -= 5;
+  const subjectiveBonus = await getSubjectiveReadinessBonus();
+  const pstBonus = await getPstReadinessBonus();
+  const contextPenalty = await getDailyContextPenalty();
+  const maskPenalty = await getMaskBurdenPenalty();
+
+  let total =
+    hrvScore +
+    resonantScore +
+    wimScore +
+    mindfulScore +
+    stressScore +
+    trendBonus +
+    subjectiveBonus +
+    pstBonus -
+    contextPenalty -
+    maskPenalty;
+
+  if (
+    breathSummary.wimHof >= RT.wimHofOveruse7d &&
+    breathSummary.resonant < RT.resonantMinWithWim7d
+  ) {
+    total -= RT.wimHofOverusePenalty;
   }
   if (await hadWimHofToday()) {
     const hrvToday = await db.hrvEntries.where('date').equals(todayKey()).first();
-    if (hrvToday?.rmssd != null && hrvToday.rmssd < 25) {
-      total -= 8;
+    if (hrvToday?.rmssd != null && hrvToday.rmssd < RT.wimHofLowRmssd) {
+      total -= RT.wimHofLowHrvPenalty;
     }
   }
 
@@ -144,81 +156,15 @@ async function regulationScore(): Promise<number> {
 }
 
 async function mindScore(): Promise<number> {
-  const since = dateKeyDaysAgo(7);
-  const sinceCold = dateKeyDaysAgo(COLD_LOOKBACK_DAYS);
-
-  const cold = await isColdStart([
-    () => hasChessSince(sinceCold),
-    () => hasReflectSince(sinceCold),
-    () => hasScenarioSince(sinceCold),
-  ]);
-  if (cold) return COLD_START;
-
-  const chessSessions = await db.chessGoSessions.where('date').aboveOrEqual(since).toArray();
-  const chessCount = chessSessions.length;
-  const chessMinutes = chessSessions.reduce((a, s) => a + s.durationMin, 0);
-  const reflections = await db.reflections.where('date').aboveOrEqual(since).count();
-  const scenarios = await db.scenarios.where('date').aboveOrEqual(since).count();
-  const decisions = await db.decisionLogs.where('date').aboveOrEqual(since).count();
-
-  const chessCountScore = Math.min(25, (chessCount / 5) * 25);
-  const chessMinScore = Math.min(20, (chessMinutes / 150) * 20);
-  const reflectScore = Math.min(25, (reflections / 5) * 25);
-  const scenarioScore = Math.min(15, scenarios >= 1 ? 15 : 0);
-  const decisionScore = Math.min(10, decisions >= 1 ? 10 : 0);
-
-  let total = chessCountScore + chessMinScore + reflectScore + scenarioScore + decisionScore;
-
-  const studyCount = await db.studySessions.where('date').aboveOrEqual(since).count();
-  total += Math.min(5, studyCount >= 2 ? 5 : studyCount * 2);
-
-  const { getDecisionClosureRate14d } = await import('./decision-followup');
-  const closurePct = await getDecisionClosureRate14d();
-  if (closurePct >= 70) total += 5;
-  else if (closurePct >= 40) total += 2;
-
-  const { getWeeklyReadingStatus } = await import('./library-books');
-  const weekly = await getWeeklyReadingStatus();
-  if (weekly.missionDone) total += 5;
-
   const foundation = await foundationScore();
   const regulation = await regulationScore();
-  if (foundation < 45 || regulation < 40) {
-    total = Math.min(total, 55);
-  }
-
-  return clamp(total);
+  const { computeMindScore } = await import('./mind-readiness');
+  return computeMindScore(foundation, regulation);
 }
 
 async function influenceScore(): Promise<number> {
-  const since = dateKeyDaysAgo(14);
-  const sinceCold = dateKeyDaysAgo(COLD_LOOKBACK_DAYS);
-
-  const cold = await isColdStart([() => hasInfluenceSince(sinceCold)]);
-  if (cold) return COLD_START;
-
-  const entries = await db.influenceEntries.where('date').aboveOrEqual(since).toArray();
-  const miCount = entries.filter((e) => e.type === 'mi').length;
-  const nudgeCount = entries.filter((e) => e.type === 'nudge').length;
-  const protocolDays = new Set(
-    entries.filter((e) => e.type === 'protocol').map((e) => e.date)
-  ).size;
-  const biasOrObs = entries.filter(
-    (e) => e.type === 'bias' || e.type === 'observation' || e.type === 'debrief'
-  ).length;
-
-  const miScore = Math.min(35, (miCount / 2) * 35);
-  const nudgeScore = Math.min(20, nudgeCount >= 1 ? 20 : 0);
-  const protocolScore = Math.min(15, (protocolDays / 2) * 15);
-  const extraScore = Math.min(15, biasOrObs >= 1 ? 15 : 0);
-
-  const contactCount = await db.contacts.count();
-  const activeOps = (await db.operations.toArray()).filter(
-    (o) => o.phase !== 'closed' && o.status !== 'lost'
-  ).length;
-  const dossierScore = Math.min(10, contactCount >= 1 ? 5 : 0) + Math.min(5, activeOps >= 1 ? 5 : 0);
-
-  return clamp(miScore + nudgeScore + protocolScore + extraScore + dossierScore);
+  const { computeInfluenceScore } = await import('./influence-readiness');
+  return computeInfluenceScore();
 }
 
 export async function getReadiness(): Promise<ReadinessScores> {
@@ -392,7 +338,15 @@ export async function getRuleHints(): Promise<string[]> {
     hints.push('Утренний briefing DIRECTOR ещё не выполнен');
   }
 
-  const { getPendingDecisionFollowUps } = await import('./decision-followup');
+  const { getPendingDecisionFollowUps, getDecisionClosureRate14d } = await import(
+    './decision-followup'
+  );
+  const closurePct = await getDecisionClosureRate14d();
+  if (closurePct < 40) {
+    hints.push(
+      `Decision closure 14d=${closurePct}% < 40% — приоритет mind.decision.followup`
+    );
+  }
   const pendingDecisions = await getPendingDecisionFollowUps();
   if (pendingDecisions.length > 0) {
     hints.push(

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { db, todayKey } from '@/core/db';
 import { afterReflectionComplete } from '@/core/engines/os-kernel';
 import { COGNITIVE_BIAS_HINTS } from '@/content/mind-protocols';
-import type { ReflectionEntry, ReflectionMode } from '@/core/domain/types';
+import type { FocusRating, ReflectionEntry, ReflectionMode } from '@/core/domain/types';
 import { GlossaryZone } from '@/ui/glossary';
 
 interface Props {
@@ -15,6 +15,8 @@ export function MetacognitionPanel({ onSaved }: Props) {
   const [recent, setRecent] = useState<ReflectionEntry[]>([]);
   const [pmr, setPmr] = useState({ plan: '', monitor: '', reflect: '' });
   const [ooda, setOoda] = useState({ observe: '', orient: '', decide: '', act: '' });
+  const [durationMin, setDurationMin] = useState('5');
+  const [cognitiveLoad, setCognitiveLoad] = useState('3');
 
   const load = async () => {
     setRecent(await db.reflections.orderBy('date').reverse().limit(5).toArray());
@@ -33,6 +35,8 @@ export function MetacognitionPanel({ onSaved }: Props) {
         plan: pmr.plan,
         monitor: pmr.monitor,
         reflect: pmr.reflect,
+        durationMin: Math.max(1, Number(durationMin) || 5),
+        cognitiveLoad: Number(cognitiveLoad) as FocusRating,
       });
       setPmr({ plan: '', monitor: '', reflect: '' });
     } else {
@@ -47,6 +51,8 @@ export function MetacognitionPanel({ onSaved }: Props) {
         orient: ooda.orient,
         decide: ooda.decide,
         act: ooda.act,
+        durationMin: Math.max(1, Number(durationMin) || 5),
+        cognitiveLoad: Number(cognitiveLoad) as FocusRating,
       });
       setOoda({ observe: '', orient: '', decide: '', act: '' });
     }
@@ -135,6 +141,30 @@ export function MetacognitionPanel({ onSaved }: Props) {
           ))}
         </>
       )}
+      <div className="grid-2">
+        <div className="form-row">
+          <label className="label">Минут</label>
+          <input
+            className="input"
+            type="number"
+            min={1}
+            max={60}
+            value={durationMin}
+            onChange={(e) => setDurationMin(e.target.value)}
+          />
+        </div>
+        <div className="form-row">
+          <label className="label">Когн. нагрузка (1–5)</label>
+          <input
+            className="input"
+            type="number"
+            min={1}
+            max={5}
+            value={cognitiveLoad}
+            onChange={(e) => setCognitiveLoad(e.target.value)}
+          />
+        </div>
+      </div>
       <button type="button" className="btn btn-primary" onClick={save}>
         Сохранить рефлексию
       </button>

@@ -55,6 +55,35 @@ On advance: `unlockedStages` grows; old stages → maintenance. On demote: `curr
 - `StudySession` — учёба вне chess
 - `OperatorDoctrine` — singleton `id: doctrine`, `rules[]`
 
+## NUTRITION entities
+
+Types: [`src/core/domain/nutrition-types.ts`](../src/core/domain/nutrition-types.ts)
+
+| Entity | Table | Purpose |
+|--------|-------|---------|
+| `Ingredient`, `Dish` | `ingredients`, `dishes` | Curated catalog (+ custom tables) |
+| `NutritionGoal` | `nutritionGoals` | Targets (kcal, macros) |
+| `OperatorBodyMetrics` | `operatorBodyMetrics` | Weight / body comp log |
+| `NutritionPlanState` | `nutritionPlanState` | Active meal plan |
+| `NutritionDay`, `MealEntry` | `nutritionDays`, `mealEntries` | Daily tracking |
+| `ShoppingList` | `shoppingLists` | Generated lists |
+| `OperatorNutritionParams` | `operatorNutritionParams` | Adaptive layer (STATE) |
+
+Nutrition does **not** add a fifth readiness axis; it has `buildNutritionDirective()` for OpsSummary and DIRECTOR.
+
+## Operator params (STATE)
+
+Persisted adaptive tuning per module:
+
+- `operatorTrainingParams` — foundation / training
+- `operatorRegulationParams` — regulation doses
+- `operatorMindParams` — mind chess/reflect calibration
+- `operatorInfluenceParams` — influence quality
+- `operatorNutritionParams` — nutrition adherence
+- `operatorIntegrationParams` — integration weekly focus
+
+Updated by `after-*` automations and dedicated `*-params.ts` engines.
+
 ## taskKey
 
-Stable ID linking mission, protocol, and schedule slot (e.g. `foundation.workout`, `regulation.hrv`, `influence.contact_prep`, `mind.decision.followup`).
+Stable ID linking mission, protocol, and schedule slot (e.g. `foundation.workout`, `regulation.hrv`, `nutrition.log`, `influence.contact_prep`, `mind.decision.followup`, `regulation.trigger_log`).

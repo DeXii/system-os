@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { TASK_KEYS } from '@/content/task-keys';
-import { getMindOpsSummary } from '@/core/engines/mind-metrics';
+import {
+  buildMindDirective,
+  getMindOpsSummary,
+} from '@/core/engines/mind-metrics';
 import { findSlotByTaskKey } from '@/core/engines/week-schedule';
 import { subscribeOsRefresh } from '@/core/events/event-bus';
 
@@ -11,10 +14,13 @@ interface Props {
 
 export function MindOpsSummary({ onRefresh }: Props) {
   const [stats, setStats] = useState<Awaited<ReturnType<typeof getMindOpsSummary>> | null>(null);
+  const [directive, setDirective] = useState<string | null>(null);
   const [hints, setHints] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     setStats(await getMindOpsSummary());
+    const d = await buildMindDirective();
+    setDirective([d.calculationLine, d.actionLine, d.denyLine].filter(Boolean).join('\n'));
     const queueHints: string[] = [];
     for (const key of [
       TASK_KEYS.mindChess,
@@ -47,6 +53,19 @@ export function MindOpsSummary({ onRefresh }: Props) {
   return (
     <div className="panel">
       <div className="panel-title">MIND Ops — 7 дней</div>
+      {directive && (
+        <pre
+          style={{
+            fontSize: 11,
+            fontFamily: 'var(--mono)',
+            whiteSpace: 'pre-wrap',
+            marginBottom: 8,
+            color: 'var(--text-dim)',
+          }}
+        >
+          {directive}
+        </pre>
+      )}
       {hints.length > 0 && (
         <p style={{ fontSize: 12, color: 'var(--accent)', marginBottom: 8 }}>{hints.join(' · ')}</p>
       )}
@@ -58,8 +77,16 @@ export function MindOpsSummary({ onRefresh }: Props) {
         <div>Decision logs: {stats.decisions7d}</div>
         <div>Study: {stats.studySessions7d}</div>
         <div>Closure 14d: {stats.decisionClosurePct14d}%</div>
+        <div>Calibration: {stats.decisionCalibrationPct}%</div>
+        <div>Reflect depth 7d: {stats.reflectionDepthPct7d}%</div>
+        <div>
+          Rating Δ7d: {stats.ratingDelta7d != null ? stats.ratingDelta7d : '—'}
+        </div>
         <div>Practice 14д (gate): {stats.streak}/14</div>
         <div>Combo streak (chess+reflect): {stats.comboStreak} дн</div>
+        <div>
+          Peak hour: {stats.cognitivePeakHour != null ? `${stats.cognitivePeakHour}:00` : '—'}
+        </div>
         <div>
           Чтение L3: {l3.read}/{l3.total}
         </div>

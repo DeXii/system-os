@@ -1,5 +1,6 @@
 import { db, dateKeyDaysAgo, todayKey, toLocalDateKey } from '../db';
 import type { DecisionLogEntry } from '../domain/types';
+import { updateMindParamsFromDecisionOutcome } from './mind-params';
 
 const DEFAULT_FOLLOWUP_DAYS = 7;
 
@@ -9,34 +10,29 @@ export function computeFollowUpDueDate(fromDate = todayKey()): string {
   return toLocalDateKey(d);
 }
 
+function isOpenFollowUp(l: DecisionLogEntry): boolean {
+  return !l.followUpDone && !l.actualOutcome?.trim();
+}
+
 export async function getPendingDecisionFollowUps(): Promise<DecisionLogEntry[]> {
   const today = todayKey();
-  const logs = await db.decisionLogs.toArray();
-  return logs
-    .filter(
-      (l) =>
-        !l.followUpDone &&
-        !l.actualOutcome?.trim() &&
-        l.followUpDueDate &&
-        l.followUpDueDate <= today
-    )
-    .sort((a, b) => (a.followUpDueDate ?? '').localeCompare(b.followUpDueDate ?? ''));
+  const logs = await db.decisionLogs
+    .where('followUpDueDate')
+    .between('', today)
+    .filter((l) => isOpenFollowUp(l))
+    .toArray();
+  return logs.sort((a, b) => (a.followUpDueDate ?? '').localeCompare(b.followUpDueDate ?? ''));
 }
 
 export async function getUpcomingDecisionFollowUps(withinDays = 3): Promise<DecisionLogEntry[]> {
   const today = todayKey();
   const until = dateKeyDaysAgo(-withinDays);
-  const logs = await db.decisionLogs.toArray();
-  return logs
-    .filter(
-      (l) =>
-        !l.followUpDone &&
-        !l.actualOutcome?.trim() &&
-        l.followUpDueDate &&
-        l.followUpDueDate > today &&
-        l.followUpDueDate <= until
-    )
-    .sort((a, b) => (a.followUpDueDate ?? '').localeCompare(b.followUpDueDate ?? ''));
+  const logs = await db.decisionLogs
+    .where('followUpDueDate')
+    .between(today, until, false, true)
+    .filter((l) => isOpenFollowUp(l))
+    .toArray();
+  return logs.sort((a, b) => (a.followUpDueDate ?? '').localeCompare(b.followUpDueDate ?? ''));
 }
 
 export async function getDecisionClosureRate14d(): Promise<number> {
@@ -78,10 +74,14 @@ export async function ensureDecisionFollowUpMission(date = todayKey()): Promise<
 
 export async function closeDecisionFollowUp(
   id: string,
-  actualOutcome: string
+  actualOutcome: string,
+  outcomeScore?: DecisionLogEntry['outcomeScore']
 ): Promise<void> {
   await db.decisionLogs.update(id, {
     actualOutcome,
     followUpDone: true,
+    ...(outcomeScore != null ? { outcomeScore } : {}),
   });
+  const row = await db.decisionLogs.get(id);
+  if (row) await updateMindParamsFromDecisionOutcome(row);
 }

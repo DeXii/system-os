@@ -1,6 +1,10 @@
 import { db, uid } from '../../db';
 import type { ContactProfile, InfluenceEntry, Operation } from '../../domain/types';
 import { TASK_KEYS } from '@/content/task-keys';
+import {
+  updateInfluenceParamsFromEntry,
+  updateInfluenceParamsFromOperationOutcome,
+} from '../../engines/influence-params';
 import { emitKernel, emitOsRefresh } from '../../events/event-bus';
 import { afterFactWrite } from '../pipeline';
 import { completeInfluencePractice } from '../commands/complete';
@@ -24,6 +28,7 @@ export async function afterContactSave(
     row = { ...contact, id: uid(), createdAt: now, updatedAt: now };
   }
   await db.contacts.put(row);
+  await afterFactWrite({ type: 'READINESS_INVALIDATED', reason: 'influence_contact' });
   await emitKernel('influence', `Досье: ${row.codename}`, 'success');
   emitOsRefresh();
   return row;
@@ -45,6 +50,12 @@ export async function afterOperationSave(
         updatedAt: now,
       };
   await db.operations.put(row);
+  await afterFactWrite({ type: 'READINESS_INVALIDATED', reason: 'influence_operation' });
+  if (row.status === 'won') {
+    await updateInfluenceParamsFromOperationOutcome(true);
+  } else if (row.status === 'lost') {
+    await updateInfluenceParamsFromOperationOutcome(false);
+  }
   await emitKernel('influence', `Операция: ${row.title.slice(0, 40)}`, 'success');
   emitOsRefresh();
   return row;
@@ -56,6 +67,7 @@ async function logInfluenceEntry(
   message: string
 ): Promise<InfluenceEntry> {
   await db.influenceEntries.add(row);
+  await updateInfluenceParamsFromEntry(row);
   await afterFactWrite({
     type: 'INFLUENCE_LOGGED',
     date: row.date,

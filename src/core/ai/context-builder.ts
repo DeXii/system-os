@@ -11,31 +11,58 @@ import { getStageProgress, getStreakProgress } from '../engines/stage-progressio
 import { buildTodayQueue, getWeekTemplate } from '../engines/week-schedule';
 import { getCalibration, getTodayWorkoutPlan } from '../engines/workout-planner';
 import {
+  buildRegulationDirective,
+  formatRegulationDirectiveForPrompt,
   getBreathing7dSummary,
+  getFusionReadinessSignal,
   getHrvBaseline14d,
   getHrvTrend,
+  getHrvZScoreToday,
+  getMaskBurden7d,
+  getPstEfficacy7d,
   getRegulationPractice14d,
+  getResonantMinutes7d,
 } from '../engines/regulation-metrics';
+import { getRegulationParams } from '../engines/regulation-params';
 import {
+  buildMindDirective,
+  formatMindDirectiveForPrompt,
   getChessRatingTrend,
   getMindOpsSummary,
   shouldThrottleCognitiveLoad,
 } from '../engines/mind-metrics';
+import { getMindParams } from '../engines/mind-params';
+import { getActiveGoal } from '../engines/nutrition-goal-engine';
+import {
+  buildNutritionDirective,
+  formatNutritionDirectiveForPrompt,
+  getNutritionOpsSummary,
+  getTodayNutritionDay,
+} from '../engines/nutrition-metrics';
+import { getNutritionParams } from '../engines/nutrition-params';
 import { truncateUntrustedText } from './prompts/untrusted-text';
 import {
+  buildInfluenceDirective,
+  formatInfluenceDirectiveForPrompt,
   getInfluenceOpsSummary,
   shouldThrottleInfluence,
 } from '../engines/influence-metrics';
+import { getInfluenceParams } from '../engines/influence-params';
+import { buildIntegrationContextBundle } from '../engines/integration-context';
 import {
-  getIntegrationOpsSummary,
-  getLastWeeklyAudit,
-  getPyramidStageScores,
-  getSynergySummary,
-} from '../engines/integration-metrics';
+  buildIntegrationDirective,
+  formatIntegrationDirectiveForPrompt,
+} from '../engines/integration-directive';
+import { getLastWeeklyAudit, getPyramidStageScores, getSynergySummary } from '../engines/integration-metrics';
+import { getIntegrationParams } from '../engines/integration-params';
 import { getReadingProgressByLevel } from '../engines/library-books';
 import type { GppSubtype, SetLog, WorkoutKind } from '../domain/types';
 import { buildContextConstraints } from './constraints-builder';
 import { EQUIPMENT_ALLOWED, EQUIPMENT_FORBIDDEN } from './prompts/rules/equipment.rules';
+import {
+  ALL_LOAD_GROUPS,
+  type ContextLoadGroup,
+} from './context/slice-groups';
 
 export type ContextLookbackDays = 7 | 14 | 30;
 
@@ -77,16 +104,6 @@ async function buildSetLogsSummary(since: string) {
   return [...byExercise.values()].sort((a, b) => b.lastDate.localeCompare(a.lastDate));
 }
 
-function omitExerciseCatalog(
-  foundation: Record<string, unknown>,
-  effectiveScope: string
-): Record<string, unknown> {
-  if (effectiveScope === 'foundation') return foundation;
-  const f = { ...foundation };
-  delete f.exerciseCatalog;
-  return f;
-}
-
 export function splitLayeredContext(fullContext: Record<string, unknown>): {
   fact: Record<string, unknown>;
   derived: Record<string, unknown>;
@@ -101,9 +118,20 @@ export function splitLayeredContext(fullContext: Record<string, unknown>): {
     ...regulationFact
   } = regulation;
   const mind = fullContext.mind as Record<string, unknown>;
-  const { cognitiveThrottle, ops7d: mindOps7d, ...mindFact } = mind;
+  const {
+    cognitiveThrottle,
+    ops7d: mindOps7d,
+    mindDirective: _mindDirective,
+    ...mindFact
+  } = mind;
   const influence = fullContext.influence as Record<string, unknown>;
   const { throttle, ops7d: influenceOps7d, ...influenceFact } = influence;
+  const nutrition = (fullContext.nutrition ?? {}) as Record<string, unknown>;
+  const {
+    nutritionDirective: _nutritionDirective,
+    ops7d: nutritionOps7d,
+    ...nutritionFact
+  } = nutrition;
 
   return {
     fact: {
@@ -116,6 +144,7 @@ export function splitLayeredContext(fullContext: Record<string, unknown>): {
       regulation: regulationFact,
       mind: mindFact,
       influence: influenceFact,
+      nutrition: nutritionFact,
       operations: fullContext.operations,
       doctrine: fullContext.doctrine,
       readingProgress: fullContext.readingProgress,
@@ -128,8 +157,16 @@ export function splitLayeredContext(fullContext: Record<string, unknown>): {
       compliance: fullContext.compliance,
       integration: fullContext.integration,
       regulation: { readinessRegulation, readinessFoundation, hrvTrendInWindow, hrvBaseline14d },
-      mind: { ops7d: mindOps7d, cognitiveThrottle },
+      mind: {
+        ops7d: mindOps7d,
+        cognitiveThrottle,
+        mindDirective: _mindDirective,
+      },
       influence: { ops7d: influenceOps7d, throttle },
+      nutrition: {
+        ops7d: nutritionOps7d,
+        nutritionDirective: _nutritionDirective,
+      },
     },
     hints: {
       constraints: fullContext.constraints,
@@ -139,233 +176,220 @@ export function splitLayeredContext(fullContext: Record<string, unknown>): {
   };
 }
 
-function selectContextPayload(
-  layered: Record<string, unknown>,
-  effectiveScope: string
-): Record<string, unknown> {
-  const fact = layered.fact as Record<string, unknown>;
-  const derived = layered.derived as Record<string, unknown>;
-  const hints = layered.hints as Record<string, unknown>;
-
-  if (
-    effectiveScope === 'full' ||
-    effectiveScope === 'director' ||
-    effectiveScope === 'archive'
-  ) {
-    return { ...layered, scope: effectiveScope };
-  }
-
-  const scoped: Record<string, unknown> = {
-    date: layered.date,
-    contextLookbackDays: layered.contextLookbackDays,
-    contextSinceDate: layered.contextSinceDate,
-    scope: effectiveScope,
-    fact: { ...fact },
-    derived: { ...derived },
-    hints: { ...hints },
-  };
-
-  const foundation = fact.foundation as Record<string, unknown>;
-  const regulationDerived = derived.regulation as Record<string, unknown>;
-
-  const factScoped = scoped.fact as Record<string, unknown>;
-  const derivedScoped = scoped.derived as Record<string, unknown>;
-  const regulationFact = fact.regulation as Record<string, unknown>;
-
-  switch (effectiveScope) {
-    case 'command':
-      factScoped.foundation = {
-        equipmentConstraints: foundation.equipmentConstraints,
-        workoutPlanToday: foundation.workoutPlanToday,
-        setLogsSummary: foundation.setLogsSummary,
-        allowedExerciseIds: foundation.allowedExerciseIds,
-      };
-      factScoped.regulation = {
-        hrvRecent: regulationFact.hrvRecent,
-        breathing7d: regulationFact.breathing7d,
-      };
-      derivedScoped.regulation = {
-        hrvTrendInWindow: regulationDerived.hrvTrendInWindow,
-        readinessRegulation: regulationDerived.readinessRegulation,
-        readinessFoundation: regulationDerived.readinessFoundation,
-      };
-      break;
-    case 'foundation':
-      factScoped.foundation = omitExerciseCatalog(foundation, effectiveScope);
-      delete factScoped.regulation;
-      delete factScoped.mind;
-      delete factScoped.influence;
-      break;
-    case 'regulation':
-      factScoped.regulation = fact.regulation;
-      factScoped.foundation = { equipmentConstraints: foundation.equipmentConstraints };
-      derivedScoped.regulation = derived.regulation;
-      delete factScoped.mind;
-      delete factScoped.influence;
-      break;
-    case 'mind':
-      delete factScoped.foundation;
-      delete factScoped.regulation;
-      delete factScoped.influence;
-      break;
-    case 'influence':
-      delete factScoped.foundation;
-      delete factScoped.regulation;
-      delete factScoped.mind;
-      break;
-    case 'library':
-      factScoped.mind = { readingProgress: (fact.mind as Record<string, unknown>)?.readingProgress };
-      delete factScoped.foundation;
-      delete factScoped.regulation;
-      delete factScoped.influence;
-      break;
-    case 'integration':
-      factScoped.foundation = { bftHistory: foundation.bftHistory };
-      derivedScoped.regulation = { hrvTrendInWindow: regulationDerived.hrvTrendInWindow };
-      delete factScoped.influence;
-      break;
-    default:
-      break;
-  }
-
-  if (factScoped.foundation && typeof factScoped.foundation === 'object') {
-    factScoped.foundation = omitExerciseCatalog(
-      factScoped.foundation as Record<string, unknown>,
-      effectiveScope
-    );
-  }
-
-  return scoped;
-}
-
 export interface WorkoutContextOptions {
   kind: WorkoutKind;
   gppSubtype?: GppSubtype;
 }
 
+/** @deprecated Use buildDirectorContextForTask from ./context/assemble-context */
 export async function buildDirectorContext(
   scope?: string,
   lookbackDays: ContextLookbackDays = 7,
   workoutContext?: WorkoutContextOptions
 ): Promise<string> {
-  const { getCachedContextJson, contextCacheKey } = await import('../cache/context-cache');
-  return getCachedContextJson(
-    contextCacheKey(scope, lookbackDays, workoutContext?.kind),
-    () => buildDirectorContextUncached(scope, lookbackDays, workoutContext)
-  );
+  const { buildDirectorContextForTask } = await import('./context/assemble-context');
+  const { resolveScope } = await import('./director-tasks');
+  const taskId = scope === 'full' ? 'freeCommand' : 'morningBriefing';
+  return buildDirectorContextForTask(taskId, {
+    scope: scope ?? resolveScope(taskId),
+    lookbackDays,
+    workoutContext,
+  });
 }
 
-async function buildDirectorContextUncached(
+export async function buildFlatDirectorContext(
+  groups: Set<ContextLoadGroup> = new Set(ALL_LOAD_GROUPS),
   scope?: string,
   lookbackDays: ContextLookbackDays = 7,
   workoutContext?: WorkoutContextOptions
-): Promise<string> {
+): Promise<Record<string, unknown>> {
+  const gl = (name: ContextLoadGroup) => groups.has(name);
+  const needsCore =
+    gl('kernel') ||
+    gl('regulation') ||
+    gl('foundation') ||
+    gl('mind') ||
+    gl('influence') ||
+    gl('nutrition') ||
+    gl('integration');
   const today = todayKey();
   const yesterday = dateKeyDaysAgo(1);
   const since = sinceForLookback(lookbackDays);
 
-  const profile = await db.operator.toCollection().first();
-  const readiness = await getReadiness();
-  const hints = await getRuleHints();
-  const statuses = getModuleStatuses(readiness);
-  const progress = await getStageProgress();
-  const complianceToday = await getTodayCompliance(today);
+  const profile = needsCore ? await db.operator.toCollection().first() : null;
+  const readiness = needsCore ? await getReadiness() : { foundation: 0, regulation: 0, mind: 0, influence: 0 };
+  const hints = gl('kernel') ? await getRuleHints() : [];
+  const statuses = needsCore ? getModuleStatuses(readiness) : {};
+  const progress = gl('kernel') || gl('integration') ? await getStageProgress() : {
+    id: 'progress',
+    stageStreaks: {},
+    globalStreak: 0,
+    lastEvaluatedDate: '',
+    qualifyingDays: 0,
+    readinessHistory: [],
+  };
+  const complianceToday =
+    gl('compliance') || gl('kernel') ? await getTodayCompliance(today) : null;
 
-  const missions = await db.missions.where('date').equals(today).toArray();
-  const protocol = await db.protocolItems.where('date').equals(today).toArray();
-  const dailyLog = await db.dailyLogs.where('date').equals(today).first();
+  const missions =
+    gl('today') || gl('kernel')
+      ? await db.missions.where('date').equals(today).toArray()
+      : [];
+  const protocol =
+    gl('today') || gl('kernel')
+      ? await db.protocolItems.where('date').equals(today).toArray()
+      : [];
+  const dailyLog =
+    gl('today') ? await db.dailyLogs.where('date').equals(today).first() : null;
 
-  const acftInWindow = filterDated(
-    await db.acftEvents.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => b.date.localeCompare(a.date));
+  const acftInWindow = gl('recent')
+    ? filterDated(
+        await db.acftEvents.where('date').aboveOrEqual(since).toArray(),
+        since
+      ).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
   const acftHistory = acftInWindow;
   const lastAcft = acftHistory[0] ?? null;
 
-  const bftHistory = filterDated(
-    await db.bftEvents.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => b.date.localeCompare(a.date));
+  const bftHistory = gl('recent') || gl('foundation') || gl('integration')
+    ? filterDated(
+        await db.bftEvents.where('date').aboveOrEqual(since).toArray(),
+        since
+      ).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
 
-  const hrvInWindow = filterDated(
-    await db.hrvEntries.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => b.date.localeCompare(a.date));
+  const hrvInWindow = gl('regulation')
+    ? filterDated(
+        await db.hrvEntries.where('date').aboveOrEqual(since).toArray(),
+        since
+      ).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
   const lastHrv = hrvInWindow;
 
-  const hrvTrend = await getHrvTrend(lookbackDays);
-  const hrvBaseline = await getHrvBaseline14d();
-  const breathing7d = await getBreathing7dSummary();
-  const regulationStreak = await getRegulationPractice14d();
-  const stressLogsInWindow = filterDated(
-    await db.stressLogs.where('date').aboveOrEqual(since).toArray(),
-    since
-  );
-  const mindfulInWindow = filterDated(
-    await db.mindfulnessSessions.where('date').aboveOrEqual(since).toArray(),
-    since
-  );
-  const pstRecent = filterDated(
-    await db.pstEntries.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => b.date.localeCompare(a.date));
+  const hrvTrend = gl('regulation') ? await getHrvTrend(lookbackDays) : null;
+  const hrvBaseline = gl('regulation') ? await getHrvBaseline14d() : null;
+  const breathing7d = gl('regulation') ? await getBreathing7dSummary() : null;
+  const regulationStreak = gl('regulation')
+    ? await getRegulationPractice14d()
+    : null;
+  const stressLogsInWindow = gl('regulation')
+    ? filterDated(
+        await db.stressLogs.where('date').aboveOrEqual(since).toArray(),
+        since
+      )
+    : [];
+  const mindfulInWindow = gl('regulation')
+    ? filterDated(
+        await db.mindfulnessSessions.where('date').aboveOrEqual(since).toArray(),
+        since
+      )
+    : [];
+  const pstRecent = gl('regulation')
+    ? filterDated(
+        await db.pstEntries.where('date').aboveOrEqual(since).toArray(),
+        since
+      ).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
 
-  const trainingSessions = filterDated(
-    await db.trainingSessions.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => b.date.localeCompare(a.date));
+  const trainingSessions = gl('foundation')
+    ? filterDated(
+        await db.trainingSessions.where('date').aboveOrEqual(since).toArray(),
+        since
+      ).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
 
-  const workoutPlansHistory = filterDated(
-    await db.workoutPlans.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => b.date.localeCompare(a.date));
+  const workoutPlansHistory = gl('foundation')
+    ? filterDated(
+        await db.workoutPlans.where('date').aboveOrEqual(since).toArray(),
+        since
+      ).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
 
-  const yesterdayPending = await db.missions
-    .where('date')
-    .equals(yesterday)
-    .filter((m) => m.status === 'pending')
-    .toArray();
+  const yesterdayPending =
+    gl('today') || gl('compliance')
+      ? await db.missions
+          .where('date')
+          .equals(yesterday)
+          .filter((m) => m.status === 'pending')
+          .toArray()
+      : [];
 
-  const yesterdayReport = await db.dayReports.where('date').equals(yesterday).first();
-  const todayReport = await db.dayReports.where('date').equals(today).first();
+  const yesterdayReport =
+    gl('compliance') || gl('today')
+      ? await db.dayReports.where('date').equals(yesterday).first()
+      : null;
+  const todayReport =
+    gl('today') || gl('compliance')
+      ? await db.dayReports.where('date').equals(today).first()
+      : null;
 
-  const reportsInWindow = filterDated(
-    await db.dayReports.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => a.date.localeCompare(b.date));
+  const reportsInWindow =
+    gl('compliance')
+      ? filterDated(
+          await db.dayReports.where('date').aboveOrEqual(since).toArray(),
+          since
+        ).sort((a, b) => a.date.localeCompare(b.date))
+      : [];
   const complianceTrend = reportsInWindow.map((r) => ({
     date: r.date,
     compliance: r.compliance,
     debriefDone: r.debriefDone,
   }));
 
-  const streakInfo = profile
-    ? getStreakProgress(progress, profile.currentStage)
+  const streakInfo =
+    profile && (gl('kernel') || gl('integration'))
+      ? getStreakProgress(progress, profile.currentStage)
+      : null;
+
+  const todayQueue = gl('schedule') || gl('kernel') ? await buildTodayQueue(today) : [];
+  const weekTemplate = gl('schedule') ? await getWeekTemplate() : { slots: {} };
+  const calibration = gl('foundation') ? await getCalibration() : null;
+  const workoutPlan =
+    gl('foundation') ? await getTodayWorkoutPlan(today) : null;
+  const setLogsSummary =
+    gl('foundation') ? await buildSetLogsSummary(since) : [];
+  const recentSetLogs = gl('foundation')
+    ? filterDated(
+        await db.setLogs.where('date').aboveOrEqual(since).toArray(),
+        since
+      ).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
+
+  const regulationParams = gl('regulation') ? await getRegulationParams() : { pstEfficacy: 0, wimHofTolerance: 0 };
+  const regulationDirective = gl('regulation')
+    ? await buildRegulationDirective(readiness)
     : null;
-
-  const todayQueue = await buildTodayQueue(today);
-  const weekTemplate = await getWeekTemplate();
-  const calibration = await getCalibration();
-  const workoutPlan = await getTodayWorkoutPlan(today);
-  const setLogsSummary = await buildSetLogsSummary(since);
-  const recentSetLogs = filterDated(
-    await db.setLogs.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => b.date.localeCompare(a.date));
-
-  const regulationBlock = {
+  const todayDailyLog =
+    gl('regulation') || gl('today')
+      ? await db.dailyLogs.where('date').equals(today).first()
+      : null;
+  const regulationBlock = gl('regulation') ? {
     hrvTrendInWindow: hrvTrend,
     hrvBaseline14d: hrvBaseline,
+    hrvZToday: await getHrvZScoreToday(),
     hrvRecent: lastHrv,
     breathing7d,
+    resonantMinutes7d: await getResonantMinutes7d(),
     mindfulnessInWindow: mindfulInWindow.length,
     stressLogsInWindow: stressLogsInWindow.length,
+    pstEfficacy7d: await getPstEfficacy7d(),
+    pstEfficacyEma: regulationParams.pstEfficacy,
+    fusionReadiness: await getFusionReadinessSignal(),
+    maskBurden7d: await getMaskBurden7d(),
+    wimHofTolerance: regulationParams.wimHofTolerance,
+    dailyLogToday: todayDailyLog
+      ? {
+          sleepHours: todayDailyLog.sleepHours,
+          stressLevel: todayDailyLog.stressLevel,
+        }
+      : null,
     regulationStreak,
     pstRecent,
     readinessRegulation: readiness.regulation,
     readinessFoundation: readiness.foundation,
+    regulationDirective: formatRegulationDirectiveForPrompt(regulationDirective),
     constraintKey: 'regulation.wimHof',
-  };
+  } : {};
 
   const { getOrCreateDoctrine } = await import('../engines/doctrine-service');
   const { getActiveContactsForContext, getContactsSummary } = await import(
@@ -377,46 +401,95 @@ async function buildDirectorContextUncached(
   const { getPendingDecisionFollowUps } = await import('../engines/decision-followup');
   const { computeOperatorMode } = await import('../engines/operator-mode');
 
-  const doctrine = await getOrCreateDoctrine();
-  const activeContacts = await getActiveContactsForContext();
-  const contactsSummary = await getContactsSummary();
-  const activeOps = await getActiveOperations();
-  const overdueOps = await getOverdueOperations();
-  const pendingFollowUps = await getPendingDecisionFollowUps();
-  const triggerLogsRecent = filterDated(
-    await db.triggerLogs.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => b.date.localeCompare(a.date));
-  const studyRecent = filterDated(
-    await db.studySessions.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => b.date.localeCompare(a.date));
-  const operatorMode = await computeOperatorMode(readiness);
+  const doctrine = gl('doctrine') ? await getOrCreateDoctrine() : { rules: [] };
+  const activeContacts = gl('influence') ? await getActiveContactsForContext() : [];
+  const contactsSummary = gl('influence') ? await getContactsSummary() : null;
+  const activeOps = gl('operations') ? await getActiveOperations() : [];
+  const overdueOps = gl('operations') ? await getOverdueOperations() : [];
+  const pendingFollowUps = gl('mind')
+    ? await getPendingDecisionFollowUps()
+    : [];
+  const triggerLogsRecent = gl('regulation')
+    ? filterDated(
+        await db.triggerLogs.where('date').aboveOrEqual(since).toArray(),
+        since
+      ).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
+  const studyRecent = gl('mind')
+    ? filterDated(
+        await db.studySessions.where('date').aboveOrEqual(since).toArray(),
+        since
+      ).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
+  const operatorMode =
+    gl('kernel') || needsCore ? await computeOperatorMode(readiness) : { mode: 'focus', rationale: '' };
 
-  const mindOps = await getMindOpsSummary();
-  const chessTrend = await getChessRatingTrend(lookbackDays);
-  const recentScenarios = filterDated(
-    await db.scenarios.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => b.date.localeCompare(a.date));
-  const recentDecisions = filterDated(
-    await db.decisionLogs.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => b.date.localeCompare(a.date));
-  const readingProgress = await getReadingProgressByLevel();
-  const cognitiveThrottle = shouldThrottleCognitiveLoad(readiness);
+  const mindOps = gl('mind') ? await getMindOpsSummary() : null;
+  const mindParams = gl('mind') ? await getMindParams() : null;
+  const mindDirective = gl('mind') ? await buildMindDirective(readiness) : null;
+  const chessTrend = gl('mind') ? await getChessRatingTrend(lookbackDays) : null;
+  const recentScenarios = gl('mind')
+    ? filterDated(
+        await db.scenarios.where('date').aboveOrEqual(since).toArray(),
+        since
+      )
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 6)
+        .map((s) => ({
+      id: s.id,
+      date: s.date,
+      title: s.title,
+      strengths: s.strengths ? truncateUntrustedText(s.strengths, 120) : undefined,
+      weaknesses: s.weaknesses ? truncateUntrustedText(s.weaknesses, 120) : undefined,
+      decision: s.decision ? truncateUntrustedText(s.decision, 150) : undefined,
+        }))
+    : [];
+  const recentDecisions = gl('mind')
+    ? filterDated(
+        await db.decisionLogs.where('date').aboveOrEqual(since).toArray(),
+        since
+      )
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 6)
+        .map((d) => ({
+      id: d.id,
+      date: d.date,
+      title: d.title,
+      choice: truncateUntrustedText(d.choice, 100),
+      expectedOutcome: truncateUntrustedText(d.expectedOutcome, 100),
+      actualOutcome: d.actualOutcome
+        ? truncateUntrustedText(d.actualOutcome, 100)
+        : undefined,
+      confidence: d.confidence,
+      outcomeScore: d.outcomeScore,
+        }))
+    : [];
+  const readingProgress =
+    gl('library') || gl('mind') ? await getReadingProgressByLevel() : [];
+  const cognitiveThrottle = needsCore ? shouldThrottleCognitiveLoad(readiness) : false;
 
-  const regulationBlockWithTriggers = {
-    ...regulationBlock,
-    triggerLogsInWindow: triggerLogsRecent.slice(0, 8),
-  };
+  const regulationBlockWithTriggers = gl('regulation')
+    ? {
+        ...regulationBlock,
+        triggerLogsInWindow: triggerLogsRecent.slice(0, 8),
+      }
+    : {};
 
-  const mindBlock = {
+  const mindBlock = gl('mind') ? {
     chessTrendInWindow: chessTrend,
     ops7d: mindOps,
+    mindParams: {
+      chessDoseTargetMin: mindParams.chessDoseTargetMin,
+      reflectEfficacy: mindParams.reflectEfficacy,
+      decisionCalibration: mindParams.decisionCalibration,
+      cognitivePeakHour: mindParams.cognitivePeakHour,
+      swotTolerance: mindParams.swotTolerance,
+      ratingEma: mindParams.ratingEma,
+    },
+    mindDirective: formatMindDirectiveForPrompt(mindDirective),
     recentScenarios,
     recentDecisions,
-    studySessionsInWindow: studyRecent,
+    studySessionsInWindow: studyRecent.slice(0, 8),
     pendingDecisionFollowUps: pendingFollowUps.map((d) => ({
       id: d.id,
       title: d.title,
@@ -426,17 +499,28 @@ async function buildDirectorContextUncached(
     readingProgress,
     cognitiveThrottle,
     constraintKey: 'mind.cognitiveThrottle',
-  };
+  } : {};
 
-  const influenceOps = await getInfluenceOpsSummary();
-  const recentInfluence = filterDated(
-    await db.influenceEntries.where('date').aboveOrEqual(since).toArray(),
-    since
-  ).sort((a, b) => b.date.localeCompare(a.date));
-  const influenceThrottle = shouldThrottleInfluence(readiness);
+  const influenceOps = gl('influence') ? await getInfluenceOpsSummary() : null;
+  const influenceParams = gl('influence') ? await getInfluenceParams() : null;
+  const influenceDirective = gl('influence') ? await buildInfluenceDirective(readiness) : null;
+  const recentInfluence = gl('influence')
+    ? filterDated(
+        await db.influenceEntries.where('date').aboveOrEqual(since).toArray(),
+        since
+      ).sort((a, b) => b.date.localeCompare(a.date))
+    : [];
+  const influenceThrottle = gl('influence') ? shouldThrottleInfluence(readiness) : false;
 
-  const influenceBlock = {
+  const influenceBlock = gl('influence') ? {
     ops7d: influenceOps,
+    influenceParams: {
+      miDepthEma: influenceParams.miDepthEma,
+      miEfficacyEma: influenceParams.miEfficacyEma,
+      miDoseTargetWeekly: influenceParams.miDoseTargetWeekly,
+      nudgeEfficacyEma: influenceParams.nudgeEfficacyEma,
+    },
+    influenceDirective: formatInfluenceDirectiveForPrompt(influenceDirective),
     recentEntries: recentInfluence,
     throttle: influenceThrottle,
     contacts: activeContacts.map((c) => ({
@@ -448,27 +532,89 @@ async function buildDirectorContextUncached(
     })),
     contactsSummary,
     constraintKey: 'influence.communication',
-  };
+  } : {};
 
-  const pdp = await db.pdp.toCollection().first();
-  const integrationOps = await getIntegrationOpsSummary(readiness);
-  const lastWeeklyAudit = await getLastWeeklyAudit();
+  const pdp = gl('integration') ? await db.pdp.toCollection().first() : null;
+  const nutritionOps = gl('nutrition') ? await getNutritionOpsSummary() : null;
+  const nutritionParams = gl('nutrition') ? await getNutritionParams() : null;
+  const nutritionDirective = gl('nutrition') ? await buildNutritionDirective(readiness) : null;
+  const activeNutritionGoal = gl('nutrition') ? await getActiveGoal() : null;
+  const todayNutritionDay = gl('nutrition') ? await getTodayNutritionDay() : null;
 
-  const integrationBlock = {
+  const nutritionBlock = gl('nutrition') ? {
+    ops7d: nutritionOps,
+    nutritionParams: {
+      proteinBaselineEma: nutritionParams.proteinBaselineEma,
+      calorieBaselineEma: nutritionParams.calorieBaselineEma,
+      adherenceEma: nutritionParams.adherenceEma,
+      loggingDoseTargetMeals: nutritionParams.loggingDoseTargetMeals,
+    },
+    goal: activeNutritionGoal
+      ? {
+          goalType: activeNutritionGoal.goalType,
+          targetCalories: activeNutritionGoal.targetCalories,
+          targetProtein: activeNutritionGoal.targetProtein,
+        }
+      : null,
+    today: todayNutritionDay
+      ? {
+          calories: todayNutritionDay.calories,
+          protein: todayNutritionDay.protein,
+          proteinGap: nutritionOps.proteinGap,
+        }
+      : null,
+    nutritionDirective: formatNutritionDirectiveForPrompt(nutritionDirective),
+    constraintKey: 'nutrition.adherence',
+  } : {};
+
+  const integrationBundle = gl('integration')
+    ? await buildIntegrationContextBundle(readiness)
+    : null;
+  const integrationOps = integrationBundle?.ops ?? null;
+  const integrationParams = gl('integration') ? await getIntegrationParams() : null;
+  const lastWeeklyAudit = gl('integration') ? await getLastWeeklyAudit() : null;
+  const integrationDirective =
+    gl('integration') && profile != null && integrationOps
+      ? await buildIntegrationDirective({
+          readiness,
+          ops: integrationOps,
+          profile,
+          progress: integrationBundle!.progress,
+          pdp: pdp ?? null,
+          gateEval: integrationBundle!.progress.lastGateSnapshot ?? null,
+        })
+      : null;
+
+  const integrationBlock = gl('integration') ? {
     stages: getPyramidStageScores(readiness),
     synergy: getSynergySummary(readiness),
     ops7d: integrationOps,
+    integrationParams: {
+      complianceTargetEma: integrationParams.complianceTargetEma,
+      debriefTargetEma: integrationParams.debriefTargetEma,
+      synergyGapTolerance: integrationParams.synergyGapTolerance,
+      auditIntervalDaysEma: integrationParams.auditIntervalDaysEma,
+    },
+    integrationDirective: integrationDirective
+      ? formatIntegrationDirectiveForPrompt(integrationDirective)
+      : null,
     pdp: pdp ?? null,
     lastWeeklyAudit: lastWeeklyAudit
       ? { createdAt: lastWeeklyAudit.createdAt, preview: lastWeeklyAudit.text.slice(0, 200) }
       : null,
     constraintKey: 'integration.weekly',
-  };
+  } : {};
 
-  const fitnessLevels = await getFitnessLevels();
-  const gppRotationNext = await getRecommendedGppSubtype();
+  const fitnessLevels = gl('foundation') ? await getFitnessLevels() : {
+    hift: 0,
+    gpp: 0,
+    warmup: 0,
+    stretch: 0,
+    manualOverride: null,
+  };
+  const gppRotationNext = gl('foundation') ? await getRecommendedGppSubtype() : null;
   const workoutStats: Record<string, { totalCount: number; lastDate: string | null }> = {};
-  const kinds: WorkoutKind[] = [
+  const kinds: WorkoutKind[] = gl('foundation') ? [
     'hift',
     'gpp_push',
     'gpp_pull',
@@ -478,7 +624,7 @@ async function buildDirectorContextUncached(
     'stretch',
     'cardio_intense',
     'cardio_easy',
-  ];
+  ] : [];
   for (const k of kinds) {
     const s = await getWorkoutTypeStat(k);
     workoutStats[k] = { totalCount: s.totalCount, lastDate: s.lastDate };
@@ -486,22 +632,30 @@ async function buildDirectorContextUncached(
 
   const activeKind = workoutContext?.kind ?? 'legacy';
   const activeTier = tierForWorkoutKind(fitnessLevels, activeKind);
-  const allowedForActive =
-    activeKind === 'legacy'
+  const allowedForActive = gl('foundation')
+    ? activeKind === 'legacy'
       ? BAR_EXERCISES.map((e) => e.id)
-      : getAllowedIdsForKind(activeKind, activeTier);
+      : getAllowedIdsForKind(activeKind, activeTier)
+    : [];
 
   const setLogsByKind: Record<string, typeof recentSetLogs> = {};
   for (const k of kinds) {
     setLogsByKind[k] = recentSetLogs.filter((l) => l.workoutKind === k);
   }
 
-  const cardioSessionsInWindow = filterDated(
-    await db.cardioSessions.where('date').aboveOrEqual(since).toArray(),
-    since
-  );
+  const cardioSessionsInWindow = gl('foundation')
+    ? filterDated(
+        await db.cardioSessions.where('date').aboveOrEqual(since).toArray(),
+        since
+      )
+    : [];
 
-  const foundationBlock = {
+  const { getTrainingParams } = await import('../engines/training-params');
+  const { getFoundationLoadModifiers } = await import('../engines/foundation-load');
+  const trainingParams = gl('foundation') ? await getTrainingParams() : null;
+  const loadModifiers = gl('foundation') ? await getFoundationLoadModifiers() : null;
+
+  const foundationBlock = gl('foundation') ? {
     fitnessLevels: {
       hift: fitnessLevels.hift,
       gpp: fitnessLevels.gpp,
@@ -509,6 +663,13 @@ async function buildDirectorContextUncached(
       stretch: fitnessLevels.stretch,
       manualOverride: fitnessLevels.manualOverride,
     },
+    trainingParams: {
+      strengthPull: trainingParams.strengthPull,
+      strengthPush: trainingParams.strengthPush,
+      fatigue: trainingParams.fatigue,
+      recoveryPrior: trainingParams.recoveryPrior,
+    },
+    loadModifiers,
     gppRotationNext,
     workoutTypeStats: workoutStats,
     activeWorkoutRequest: workoutContext ?? null,
@@ -559,12 +720,14 @@ async function buildDirectorContextUncached(
       tierLabel: 'Начинающий (эталон структуры)',
       ...getAllReferenceTemplatesForGroq(),
     },
-  };
+  } : {};
 
-  const constraints = buildContextConstraints(readiness, operatorMode, {
+  const constraints = needsCore
+    ? buildContextConstraints(readiness, operatorMode, {
     cognitiveThrottle,
     influenceThrottle,
-  });
+      })
+    : { active: [], flags: {}, aiMode: 'focus' as const, aiModeHints: [] };
 
   const fullContext = {
     date: today,
@@ -600,6 +763,7 @@ async function buildDirectorContextUncached(
     regulation: regulationBlockWithTriggers,
     mind: mindBlock,
     influence: influenceBlock,
+    nutrition: nutritionBlock,
     operations: {
       active: activeOps.map((o) => ({
         id: o.id,
@@ -681,20 +845,5 @@ async function buildDirectorContextUncached(
     },
   };
 
-  const effectiveScope = scope ?? 'full';
-  const layeredParts = splitLayeredContext(
-    fullContext as unknown as Record<string, unknown>
-  );
-  const layered = {
-    date: today,
-    contextLookbackDays: lookbackDays,
-    contextSinceDate: since,
-    scope: effectiveScope,
-    ...layeredParts,
-  };
-  const payload = selectContextPayload(
-    layered as unknown as Record<string, unknown>,
-    effectiveScope
-  );
-  return JSON.stringify(payload);
+  return fullContext as unknown as Record<string, unknown>;
 }

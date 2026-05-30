@@ -8,15 +8,34 @@ import type {
   StressLogEntry,
   TriggerLog,
 } from '../../domain/types';
+import {
+  updateRegulationParamsFromBreathing,
+  updateRegulationParamsFromHrv,
+  updateRegulationParamsFromStress,
+} from '../../engines/regulation-params';
 import { summarizeBreathingSession } from '../../engines/regulation-metrics';
+import {
+  sanitizeHrvEntry,
+  sanitizeStressLogEntry,
+  validateHrvEntry,
+  validateStressLogEntry,
+} from '../../engines/regulation-validation';
 import { completeRegulationPractice } from '../commands/complete';
 import { afterFactWrite } from '../pipeline';
+
+export class RegulationValidationError extends Error {
+  constructor(public readonly errors: string[]) {
+    super(errors.join('; '));
+    this.name = 'RegulationValidationError';
+  }
+}
 
 export async function afterBreathingComplete(
   session: Omit<BreathingSession, 'id'>
 ): Promise<BreathingSession> {
   const entry: BreathingSession = { ...session, id: uid() };
   await db.breathingSessions.add(entry);
+  await updateRegulationParamsFromBreathing(session);
   await afterFactWrite({
     type: 'BREATHING_LOGGED',
     date: session.date,
@@ -57,8 +76,12 @@ export async function afterStressLogComplete(
   entry: Omit<StressLogEntry, 'id'>,
   options?: { pstEntry?: Omit<PstEntry, 'id'> }
 ): Promise<StressLogEntry> {
-  const log: StressLogEntry = { ...entry, id: uid() };
+  const validation = validateStressLogEntry(entry);
+  if (!validation.ok) throw new RegulationValidationError(validation.errors);
+  const sanitized = sanitizeStressLogEntry(entry);
+  const log: StressLogEntry = { ...sanitized, id: uid() };
   await db.stressLogs.add(log);
+  await updateRegulationParamsFromStress(sanitized);
   await afterFactWrite({ type: 'STRESS_LOGGED', date: entry.date, entryId: log.id });
   await completeRegulationPractice(
     TASK_KEYS.regulationStress,
@@ -74,8 +97,12 @@ export async function afterStressLogComplete(
 }
 
 export async function afterHrvComplete(entry: Omit<HrvEntry, 'id'>): Promise<void> {
-  const row = { ...entry, id: uid() };
+  const validation = validateHrvEntry(entry);
+  if (!validation.ok) throw new RegulationValidationError(validation.errors);
+  const sanitized = sanitizeHrvEntry(entry);
+  const row = { ...sanitized, id: uid() };
   await db.hrvEntries.add(row);
+  await updateRegulationParamsFromHrv(sanitized);
   await afterFactWrite({ type: 'HRV_LOGGED', date: entry.date, entryId: row.id });
   await completeRegulationPractice(TASK_KEYS.regulationHrv, 'HRV записан', entry.date);
 }

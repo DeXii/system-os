@@ -1,6 +1,12 @@
 import { TASK_KEYS } from '@/content/task-keys';
 import { db, todayKey } from '../../db';
 import type { AiInsight, PersonalDevelopmentPlan } from '../../domain/types';
+import { cacheLastWeeklyAudit, computeSynergyGap } from '../../engines/integration-metrics';
+import {
+  updateIntegrationParamsFromAudit,
+  updateIntegrationParamsFromAuditInterval,
+} from '../../engines/integration-params';
+import { computeReadiness } from '../../engines/readiness';
 import { weekStartKey } from '../../engines/library-books';
 import { emitKernel, emitOsRefresh } from '../../events/event-bus';
 import { completeByTaskKey, completeIntegrationPractice } from '../commands/complete';
@@ -23,7 +29,17 @@ export async function afterPdpSave(pdp: PersonalDevelopmentPlan): Promise<Person
   return row;
 }
 
-export async function afterWeeklyAuditComplete(_insight: AiInsight): Promise<void> {
+export async function afterWeeklyAuditComplete(insight: AiInsight): Promise<void> {
+  const progress = await db.stageProgress.get('progress');
+  if (progress?.lastWeeklyAuditAt) {
+    const days = Math.floor(
+      (Date.now() - new Date(progress.lastWeeklyAuditAt).getTime()) / 86400000
+    );
+    await updateIntegrationParamsFromAuditInterval(days);
+  }
+  await cacheLastWeeklyAudit(insight);
+  const readiness = await computeReadiness();
+  await updateIntegrationParamsFromAudit(computeSynergyGap(readiness));
   await completeIntegrationPractice(
     TASK_KEYS.integrationWeeklyAudit,
     'Weekly System Audit завершён',

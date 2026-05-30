@@ -6,6 +6,7 @@ import { generateFullStackMissions } from '../../engines/mission-generator';
 import { generateFullStackProtocol } from '../../engines/protocol-generator';
 import { weekStartKey } from '../../engines/library-books';
 import { buildDay } from '../../engines/scheduler';
+import { getDeviceId } from '../../db/write';
 import { emitOsRefresh } from '../../events/event-bus';
 import { afterFactWrite } from '../pipeline';
 
@@ -16,13 +17,27 @@ export async function ensureDayBootstrapped(profile: OperatorProfile, date = tod
   if (inflight) return inflight;
 
   const run = (async () => {
+    const meta = await db.dbMeta.get('db-meta');
+    const alreadyBootstrappedToday = meta?.lastBootstrappedDate === date;
+
     await generateFullStackProtocol(profile, date);
     await generateFullStackMissions(profile, date);
     await ensureWeeklyReadingMission(profile, date);
     await ensureDecisionFollowUpMission(date);
     await ensureStudyMissionIfStale(profile, date);
     await buildDay(profile, date);
-    await afterFactWrite({ type: 'DAY_BOOTSTRAPPED', date });
+
+    if (!alreadyBootstrappedToday) {
+      const now = new Date().toISOString();
+      await db.dbMeta.put({
+        id: 'db-meta',
+        globalRevision: meta?.globalRevision ?? 0,
+        lastUpdated: now,
+        deviceId: meta?.deviceId ?? getDeviceId(),
+        lastBootstrappedDate: date,
+      });
+      await afterFactWrite({ type: 'DAY_BOOTSTRAPPED', date });
+    }
   })();
 
   bootstrapInflight.set(date, run);

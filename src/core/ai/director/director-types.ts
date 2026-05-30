@@ -1,4 +1,5 @@
 import type { AiAction } from '../../domain/types';
+import type { ContextManifest } from '../context/context-slice-types';
 
 export type PromptTemplateId =
   | 'training'
@@ -6,6 +7,7 @@ export type PromptTemplateId =
   | 'analysis'
   | 'cognitive'
   | 'regulation'
+  | 'nutrition'
   | 'communication'
   | 'planning'
   | 'library';
@@ -94,10 +96,19 @@ export interface DirectorTaskPromptConfig {
   allowedActions: AiAction['type'][];
   constraintIds: ConstraintId[];
   taskInstruction?: string;
+  /** Resolved via getContextManifest(taskId); optional duplicate for tooling */
+  contextManifest?: ContextManifest;
+}
+
+export interface ExerciseCatalogSnapshotEntry {
+  id: string;
+  name?: string;
+  pattern?: string;
 }
 
 export interface ParsedContextSnapshot {
   allowedExerciseIds?: string[];
+  exerciseCatalog?: ExerciseCatalogSnapshotEntry[];
   todayTaskKeys?: string[];
   contextSinceDate?: string;
   readiness?: {

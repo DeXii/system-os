@@ -11,7 +11,8 @@
 | `WimHofLive` | Раунды power breaths → retention → recovery, disclaimer |
 | `MindfulnessLive` | Таймер MMFT / body scan / focus |
 | `StressLogPanel` | Полная форма + arousal + PST |
-| `RegulationOpsSummary` | Сводка 7d + ссылка на слот COMMAND |
+| `TriggerLogPanel` | Триггеры + maskScore 1–5 |
+| `RegulationOpsSummary` | Сводка 7d + `buildRegulationDirective()` |
 | `RegulationDirectorPanel` | Groq coach + apply OS actions |
 
 ## taskKey
@@ -23,6 +24,7 @@
 - `regulation.mindfulness` — mindfulness LIVE
 - `regulation.stress` — stress log (событийно)
 - `regulation.pst` — отдельная PST-запись
+- `regulation.trigger_log` — trigger log (событийно)
 
 ## os-kernel
 
@@ -30,6 +32,14 @@
 - `afterBreathingComplete` → resonant / wimhof + alias `regulation.breathing`
 - `afterMindfulnessComplete` → `regulation.mindfulness`
 - `afterStressLogComplete` → stress + optional PST
+- `afterTriggerLogComplete` → trigger log
+
+## Adaptive layer
+
+- `regulation-metrics.ts` — Ops summary, `buildRegulationDirective()`
+- `regulation-params.ts` — `operatorRegulationParams`
+- `regulation-thresholds.ts` — Wim Hof / resonant balance
+- `regulation-validation.ts` — валидация доз и протоколов
 
 ## Dexie v4
 

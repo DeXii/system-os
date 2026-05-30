@@ -8,6 +8,11 @@ import type {
   StudySession,
 } from '../../domain/types';
 import { computeFollowUpDueDate, ensureDecisionFollowUpMission } from '../../engines/decision-followup';
+import {
+  updateMindParamsFromChess,
+  updateMindParamsFromDecisionOutcome,
+  updateMindParamsFromReflection,
+} from '../../engines/mind-params';
 import { afterFactWrite } from '../pipeline';
 import { completeByTaskKey, completeMindPractice } from '../commands/complete';
 
@@ -20,6 +25,7 @@ export async function afterChessGoComplete(
     ratingAfter: session.ratingAfter ?? session.rating,
   };
   await db.chessGoSessions.add(entry);
+  await updateMindParamsFromChess(entry);
   await afterFactWrite({ type: 'CHESS_LOGGED', date: entry.date, entryId: entry.id });
   await completeMindPractice(
     TASK_KEYS.mindChess,
@@ -34,6 +40,7 @@ export async function afterReflectionComplete(
 ): Promise<ReflectionEntry> {
   const row: ReflectionEntry = { ...entry, id: uid() };
   await db.reflections.add(row);
+  await updateMindParamsFromReflection(row);
   await afterFactWrite({ type: 'REFLECTION_LOGGED', date: row.date, entryId: row.id });
   const taskKey =
     row.mode === 'pmr_extended' ? TASK_KEYS.mindReflectExtended : TASK_KEYS.mindReflectShort;
@@ -66,17 +73,17 @@ export async function afterScenarioComplete(
 export async function afterDecisionLogComplete(
   entry: Omit<DecisionLogEntry, 'id'>
 ): Promise<DecisionLogEntry> {
-  const followUpDueDate =
-    entry.actualOutcome?.trim()
-      ? entry.followUpDueDate
-      : entry.followUpDueDate ?? computeFollowUpDueDate(entry.date);
+  const hasOutcome = Boolean(entry.actualOutcome?.trim());
   const row: DecisionLogEntry = {
     ...entry,
     id: uid(),
-    followUpDueDate: entry.actualOutcome?.trim() ? followUpDueDate : followUpDueDate,
-    followUpDone: entry.actualOutcome?.trim() ? true : entry.followUpDone,
+    followUpDueDate: hasOutcome
+      ? entry.followUpDueDate
+      : entry.followUpDueDate ?? computeFollowUpDueDate(entry.date),
+    followUpDone: hasOutcome ? true : entry.followUpDone,
   };
   await db.decisionLogs.add(row);
+  if (hasOutcome) await updateMindParamsFromDecisionOutcome(row);
   await completeMindPractice(
     TASK_KEYS.mindDecisionLog,
     `Решение: ${row.title.slice(0, 40)}`,

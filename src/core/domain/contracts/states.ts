@@ -26,6 +26,8 @@ export interface DbMetaState {
   globalRevision: number;
   lastUpdated: string;
   deviceId: string;
+  /** YYYY-MM-DD — last calendar day DAY_BOOTSTRAPPED was emitted */
+  lastBootstrappedDate?: string;
 }
 
 export interface DerivedSnapshotRecord {
